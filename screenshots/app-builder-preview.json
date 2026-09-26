@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "TOOL HUB — Quality vehicle parts",
+      "hasCanvas": false,
+      "bodyTextLen": 2101,
+      "bodyTextHash": "b2ede54ba338933616fd3e4a3a2cedb0604996f168f652a76ce68bd2fecc2f3b",
+      "bodyTextPrefix": "Kampala · Monday – Saturday, 08:00 – 18:00 0750 441 220 TOOL HUB",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "TOOL HUB — Quality vehicle parts",
+      "hasCanvas": false,
+      "bodyTextLen": 2004,
+      "bodyTextHash": "5ea0c314a01d155a3f07451d1fd3c5d657309add784d61ab677c4af12a536a5d",
+      "bodyTextPrefix": "TOOL HUB NAKAWA, KAMPALA Japanese and European parts. On the she",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

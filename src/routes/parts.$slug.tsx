@@ -1,0 +1,154 @@
+import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { useState } from "react";
+import { toast, Toaster } from "sonner";
+import { Minus, Plus, Phone } from "lucide-react";
+import { ProductCard } from "@/components/product-card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { WhatsAppIcon } from "@/components/whatsapp-icon";
+import {
+  getProductBySlug,
+  listRelatedProducts,
+} from "@/lib/catalog";
+import { useCart } from "@/lib/cart-store";
+import { formatUgx } from "@/lib/format";
+import { SHOP, whatsappUrl } from "@/lib/shop";
+
+export const Route = createFileRoute("/parts/$slug")({
+  loader: async ({ params }) => {
+    const product = await getProductBySlug({ data: { slug: params.slug } });
+    if (!product) throw notFound();
+    const related = await listRelatedProducts({
+      data: { slug: product.slug, category: product.category_slug },
+    });
+    return { product, related };
+  },
+  notFoundComponent: () => (
+    <div className="mx-auto max-w-6xl px-4 py-20">
+      <h1 className="font-display text-3xl font-semibold">Part not listed</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        That slug is not in the catalog.
+      </p>
+      <Button asChild className="mt-6">
+        <Link to="/shop" search={{}}>
+          Back to shop
+        </Link>
+      </Button>
+    </div>
+  ),
+  component: ProductPage,
+});
+
+function ProductPage() {
+  const { product, related } = Route.useLoaderData();
+  const add = useCart((s) => s.add);
+  const [qty, setQty] = useState(1);
+
+  const message = `Hello TOOL HUB, I want ${product.name} (${formatUgx(product.price_ugx)}). Is it in stock?`;
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-10">
+      <Toaster theme="dark" position="top-center" />
+      <p className="text-sm text-muted-foreground">
+        <Link to="/shop" search={{ cat: product.category_slug }} className="hover:text-foreground">
+          {product.category_slug.replace("-", " ")}
+        </Link>
+        <span className="mx-2">/</span>
+        {product.name}
+      </p>
+
+      <div className="mt-6 grid gap-10 lg:grid-cols-2">
+        <div className="overflow-hidden rounded-xl bg-card shadow-[var(--shadow-border)]">
+          <img
+            src={product.image}
+            alt={product.name}
+            className="aspect-square w-full object-cover"
+          />
+        </div>
+        <div>
+          <div className="flex flex-wrap gap-2">
+            {product.hot ? <Badge variant="hot">Hot</Badge> : null}
+            <Badge variant="steel">{product.grade}</Badge>
+            <Badge variant={product.stock > 3 ? "stock" : "outline"}>
+              {product.stock > 0 ? `${product.stock} in store` : "Ask on WhatsApp"}
+            </Badge>
+          </div>
+          <p className="mt-4 text-xs font-medium tracking-widest text-steel uppercase">
+            {product.brand}
+            {product.make ? ` · ${product.make}` : ""}
+          </p>
+          <h1 className="font-display mt-2 text-4xl font-semibold tracking-tight">
+            {product.name}
+          </h1>
+          {product.fitment ? (
+            <p className="mt-2 text-muted-foreground">Fits {product.fitment}</p>
+          ) : null}
+          <p className="mt-6 text-3xl font-medium tabular-nums">
+            {formatUgx(product.price_ugx)}
+          </p>
+          <p className="mt-4 max-w-prose text-sm leading-relaxed text-muted-foreground">
+            {product.description}
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <div className="flex h-11 items-center rounded-md bg-elevated shadow-[var(--shadow-border)]">
+              <button
+                type="button"
+                className="flex size-11 items-center justify-center text-muted-foreground hover:text-foreground"
+                onClick={() => setQty((n) => Math.max(1, n - 1))}
+                aria-label="Decrease quantity"
+              >
+                <Minus className="size-4" />
+              </button>
+              <span className="w-8 text-center tabular-nums">{qty}</span>
+              <button
+                type="button"
+                className="flex size-11 items-center justify-center text-muted-foreground hover:text-foreground"
+                onClick={() => setQty((n) => n + 1)}
+                aria-label="Increase quantity"
+              >
+                <Plus className="size-4" />
+              </button>
+            </div>
+            <Button
+              onClick={() => {
+                add(product, qty);
+                toast.success("Added to cart");
+              }}
+            >
+              Add to cart
+            </Button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button variant="outline" asChild>
+              <a href={whatsappUrl(message)} target="_blank" rel="noreferrer">
+                <WhatsAppIcon className="size-4" />
+                Ask on WhatsApp
+              </a>
+            </Button>
+            <Button variant="ghost" asChild>
+              <a href={`tel:${SHOP.phoneTel}`}>
+                <Phone className="size-4" />
+                {SHOP.phoneDisplay}
+              </a>
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {related.length > 0 ? (
+        <section className="mt-16">
+          <h2 className="font-display text-2xl font-semibold tracking-tight">
+            Same bay
+          </h2>
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {related.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}

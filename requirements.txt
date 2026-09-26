@@ -1,0 +1,5 @@
+# Python dependencies for Groke workspace helper skills and scripts
+# Used by Python scripts in .grok/skills for 2D sprite, map generation, and image processing
+
+Pillow>=10.0.0
+numpy>=1.24.0

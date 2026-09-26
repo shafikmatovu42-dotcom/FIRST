@@ -1,0 +1,90 @@
+// Prisma 6 Schema for Supabase PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Category {
+  slug      String    @id
+  name      String
+  tagline   String
+  sortOrder Int       @default(0) @map("sort_order")
+  products  Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id           Int      @id @default(autoincrement())
+  slug         String   @unique
+  name         String
+  brand        String
+  make         String?
+  fitment      String?
+  categorySlug String   @map("category_slug")
+  priceUgx     Int      @map("price_ugx")
+  grade        String
+  stock        Int      @default(0)
+  hot          Boolean  @default(false)
+  description  String
+  image        String
+
+  category Category @relation(fields: [categorySlug], references: [slug])
+
+  @@index([categorySlug], map: "products_category_idx")
+  @@index([make], map: "products_make_idx")
+  @@map("products")
+}
+
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         String   @default("owner")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("admin_users")
+}
+
+model ActivityLog {
+  id            Int      @id @default(autoincrement())
+  adminUsername String   @map("admin_username")
+  action        String
+  details       String
+  type          String   @default("info")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("activity_logs")
+}
+
+model Order {
+  id               Int      @id @default(autoincrement())
+  orderRef         String   @unique @map("order_ref")
+  customerName     String   @map("customer_name")
+  customerPhone    String   @map("customer_phone")
+  customerEmail    String?  @map("customer_email")
+  deliveryLocation String   @map("delivery_location")
+  itemsJson        String   @map("items_json")
+  totalUgx         Int      @map("total_ugx")
+  status           String   @default("Pending")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("orders")
+}
+
+model ShopSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  @@map("shop_settings")
+}

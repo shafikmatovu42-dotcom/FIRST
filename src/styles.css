@@ -1,0 +1,88 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --font-sans: "Barlow", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Barlow Condensed", "Barlow", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --color-background: #0b0b0c;
+  --color-foreground: #f3f1ec;
+  --color-card: #141416;
+  --color-card-foreground: #f3f1ec;
+  --color-popover: #1c1c1f;
+  --color-popover-foreground: #f3f1ec;
+  --color-primary: #e8e4dc;
+  --color-primary-foreground: #0b0b0c;
+  --color-secondary: #1c1c1f;
+  --color-secondary-foreground: #f3f1ec;
+  --color-muted: #1c1c1f;
+  --color-muted-foreground: #9b9891;
+  --color-accent: #8a93a0;
+  --color-accent-foreground: #0b0b0c;
+  --color-destructive: #c45c4a;
+  --color-destructive-foreground: #f3f1ec;
+  --color-border: #2a2a2e;
+  --color-input: #2a2a2e;
+  --color-ring: #8a93a0;
+  --color-steel: #8a93a0;
+  --color-elevated: #1c1c1f;
+  --color-success: #6f8f72;
+
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius: 0.75rem;
+
+  --shadow-border: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-border-hover: 0 0 0 1px rgba(255, 255, 255, 0.13);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  img {
+    outline: 1px solid color-mix(in oklab, var(--color-foreground) 10%, transparent);
+    outline-offset: -1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
