@@ -51,7 +51,8 @@ export const Route = createRootRoute({
         content:
           "TOOL HUB, vehicle parts, Kampala, auto spare parts, headlamps, taillamps, body parts, Toyota Premio, Hilux Revo, Isuzu D-Max, Subaru Forester, Nakawa, Uganda auto parts",
       },
-      { name: "theme-color", content: "#0b0b0c" },
+      { name: "theme-color", media: "(prefers-color-scheme: dark)", content: "#0b0b0c" },
+      { name: "theme-color", media: "(prefers-color-scheme: light)", content: "#f8fafc" },
 
       // Open Graph / Facebook / WhatsApp Preview
       { property: "og:type", content: "website" },

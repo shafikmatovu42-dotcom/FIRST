@@ -27,7 +27,7 @@ export function SiteShell() {
   return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <SiteHeader />
-      <main className="flex-1 pb-20 md:pb-0">
+      <main className="flex-1 pb-24 md:pb-0">
         <Outlet />
       </main>
       <PwaInstallBanner />
@@ -44,18 +44,18 @@ export function SiteShell() {
       >
         <WhatsAppIcon className="size-6" />
       </a>
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-border bg-card md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-border bg-card/95 backdrop-blur-md pb-[env(safe-area-inset-bottom,0px)] px-[env(safe-area-inset-right,0px)] md:hidden">
         <Link
           to="/shop"
           search={{}}
-          className="flex min-h-14 flex-col items-center justify-center gap-1 text-[0.6875rem] text-muted-foreground"
+          className="flex min-h-14 flex-col items-center justify-center gap-1 text-[0.6875rem] text-muted-foreground transition-colors hover:text-foreground active:opacity-75"
         >
           <LayoutGrid className="size-4" />
           Shop
         </Link>
         <Link
           to="/cart"
-          className="flex min-h-14 flex-col items-center justify-center gap-1 text-[0.6875rem] text-muted-foreground"
+          className="flex min-h-14 flex-col items-center justify-center gap-1 text-[0.6875rem] text-muted-foreground transition-colors hover:text-foreground active:opacity-75"
         >
           <ShoppingCart className="size-4" />
           Cart
@@ -64,7 +64,7 @@ export function SiteShell() {
           href={whatsappUrl("Hello TOOL HUB, I need a spare part.", whatsappNum)}
           target="_blank"
           rel="noreferrer"
-          className="flex min-h-14 flex-col items-center justify-center gap-1 text-[0.6875rem] text-muted-foreground"
+          className="flex min-h-14 flex-col items-center justify-center gap-1 text-[0.6875rem] text-muted-foreground transition-colors hover:text-foreground active:opacity-75"
         >
           <WhatsAppIcon className="size-4" />
           WhatsApp
