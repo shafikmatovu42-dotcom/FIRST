@@ -79,6 +79,15 @@ function AdminProductsPage() {
       .replace(/(^-|-$)+/g, "");
   };
 
+  const showFeedback = (fb: { type: "success" | "error"; text: string } | null) => {
+    setFeedback(fb);
+    if (fb && fb.type === "success") {
+      setTimeout(() => {
+        setFeedback(null);
+      }, 5000);
+    }
+  };
+
   const handleOpenAdd = () => {
     setFormData({
       id: 0,
@@ -96,7 +105,7 @@ function AdminProductsPage() {
       image: "/parts/headlamp.jpg",
     });
     setIsAddOpen(true);
-    setFeedback(null);
+    showFeedback(null);
   };
 
   const handleOpenEdit = (p: Product) => {
@@ -116,7 +125,7 @@ function AdminProductsPage() {
       image: p.image,
     });
     setEditProductItem(p);
-    setFeedback(null);
+    showFeedback(null);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -137,46 +146,78 @@ function AdminProductsPage() {
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setFeedback(null);
+    showFeedback(null);
 
-    const slug = formData.slug || autoSlug(formData.name);
-
-    if (editProductItem) {
-      // Update existing
-      const res = await updateProduct({
-        data: {
-          ...formData,
-          slug,
-          id: editProductItem.id,
-        },
-      });
-
-      if (res.success) {
-        setFeedback({ type: "success", text: `Product '${formData.name}' updated successfully.` });
-        setEditProductItem(null);
-        router.invalidate();
-      } else {
-        setFeedback({ type: "error", text: res.error || "Failed to update product." });
+    try {
+      if (!formData.name || formData.name.trim().length < 2) {
+        showFeedback({ type: "error", text: "Product name must be at least 2 characters." });
+        return;
       }
-    } else {
-      // Create new
-      const res = await createProduct({
-        data: {
-          ...formData,
-          slug,
-        },
-      });
 
-      if (res.success) {
-        setFeedback({ type: "success", text: `Product '${formData.name}' added to catalog!` });
-        setIsAddOpen(false);
-        router.invalidate();
+      const generatedSlug = autoSlug(formData.slug) || autoSlug(formData.name);
+      const slug = generatedSlug.length >= 2 ? generatedSlug : `part-${Date.now().toString().slice(-6)}`;
+
+      if (editProductItem) {
+        // Update existing
+        const res = await updateProduct({
+          data: {
+            id: editProductItem.id,
+            name: formData.name,
+            slug,
+            brand: formData.brand,
+            make: formData.make || null,
+            fitment: formData.fitment || null,
+            category_slug: formData.category_slug,
+            price_ugx: Number(formData.price_ugx),
+            grade: formData.grade,
+            stock: Number(formData.stock),
+            hot: Boolean(formData.hot),
+            description: formData.description,
+            image: formData.image,
+          },
+        });
+
+        if (res?.success) {
+          showFeedback({ type: "success", text: `Product '${formData.name}' updated successfully.` });
+          setEditProductItem(null);
+          router.invalidate();
+        } else {
+          showFeedback({ type: "error", text: res?.error || "Failed to update product." });
+        }
       } else {
-        setFeedback({ type: "error", text: res.error || "Failed to create product." });
+        // Create new
+        const res = await createProduct({
+          data: {
+            name: formData.name,
+            slug,
+            brand: formData.brand,
+            make: formData.make || null,
+            fitment: formData.fitment || null,
+            category_slug: formData.category_slug,
+            price_ugx: Number(formData.price_ugx),
+            grade: formData.grade,
+            stock: Number(formData.stock),
+            hot: Boolean(formData.hot),
+            description: formData.description,
+            image: formData.image,
+          },
+        });
+
+        if (res?.success) {
+          showFeedback({ type: "success", text: `Product '${formData.name}' added to catalog!` });
+          setIsAddOpen(false);
+          router.invalidate();
+        } else {
+          showFeedback({ type: "error", text: res?.error || "Failed to create product." });
+        }
       }
+    } catch (err: unknown) {
+      console.error("Error saving product:", err);
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred while saving.";
+      showFeedback({ type: "error", text: msg });
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
   };
 
   const handleDelete = async () => {
@@ -188,11 +229,11 @@ function AdminProductsPage() {
     });
 
     if (res.success) {
-      setFeedback({ type: "success", text: `Deleted '${deleteProductItem.name}'` });
+      showFeedback({ type: "success", text: `Deleted '${deleteProductItem.name}'` });
       setDeleteProductItem(null);
       router.invalidate();
     } else {
-      setFeedback({ type: "error", text: res.error || "Failed to delete item" });
+      showFeedback({ type: "error", text: res.error || "Failed to delete item" });
     }
     setSubmitting(false);
   };
@@ -221,14 +262,19 @@ function AdminProductsPage() {
 
       {feedback && (
         <div
-          className={`flex items-center gap-3 rounded-xl border p-4 text-sm font-medium ${
+          className={`flex items-center justify-between gap-3 rounded-xl border p-4 text-sm font-medium transition-all ${
             feedback.type === "success"
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
               : "border-red-500/30 bg-red-500/10 text-red-400"
           }`}
         >
-          {feedback.type === "success" ? <CheckCircle2 className="size-5 shrink-0" /> : <AlertCircle className="size-5 shrink-0" />}
-          <span>{feedback.text}</span>
+          <div className="flex items-center gap-3">
+            {feedback.type === "success" ? <CheckCircle2 className="size-5 shrink-0" /> : <AlertCircle className="size-5 shrink-0" />}
+            <span>{feedback.text}</span>
+          </div>
+          <button onClick={() => setFeedback(null)} className="rounded-lg p-1 opacity-70 hover:opacity-100">
+            <X className="size-4" />
+          </button>
         </div>
       )}
 
@@ -382,7 +428,7 @@ function AdminProductsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="space-y-4">
+            <form onSubmit={handleSaveProduct} autoComplete="off" className="space-y-4">
               {/* Product Name & Brand */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
@@ -550,6 +596,19 @@ function AdminProductsPage() {
                   Feature this product on homepage ("Hot / Popular")
                 </label>
               </div>
+
+              {feedback && (
+                <div
+                  className={`flex items-center gap-3 rounded-xl border p-3 text-xs font-medium ${
+                    feedback.type === "success"
+                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                      : "border-red-500/30 bg-red-500/10 text-red-400"
+                  }`}
+                >
+                  {feedback.type === "success" ? <CheckCircle2 className="size-4 shrink-0" /> : <AlertCircle className="size-4 shrink-0" />}
+                  <span>{feedback.text}</span>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex justify-end gap-3 border-t border-zinc-800 pt-4">

@@ -27,6 +27,22 @@ export type Product = {
 
 const COLS = `id, slug, name, brand, make, fitment, category_slug, price_ugx, grade, stock, hot, description, image`;
 
+export const getPublicShopSettings = createServerFn({ method: "GET" }).handler(
+  async (): Promise<Record<string, string>> => {
+    try {
+      const sql = await getSql();
+      const rows = await sql.query<{ key: string; value: string }>("select key, value from shop_settings");
+      const settings: Record<string, string> = {};
+      for (const r of rows) {
+        settings[r.key] = r.value;
+      }
+      return settings;
+    } catch {
+      return {};
+    }
+  },
+);
+
 export const listCategories = createServerFn({ method: "GET" }).handler(
   async () => {
     const sql = await getSql();

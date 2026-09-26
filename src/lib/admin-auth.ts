@@ -23,6 +23,19 @@ async function hashPassword(password: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+export const checkHasAdminUser = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ hasAdmin: boolean; count: number }> => {
+    try {
+      const sql = await getSql();
+      const rows = await sql.query<{ count: number }>("select count(*) as count from admin_users");
+      const count = Number(rows[0]?.count ?? 0);
+      return { hasAdmin: count > 0, count };
+    } catch {
+      return { hasAdmin: false, count: 0 };
+    }
+  }
+);
+
 export const getAdminSession = createServerFn({ method: "GET" }).handler(
   async (): Promise<AdminUser | null> => {
     const token = getCookie(SESSION_COOKIE_NAME);
@@ -84,7 +97,7 @@ export const adminLogin = createServerFn({ method: "POST" })
     // Log login activity
     await sql.query(
       `insert into activity_logs (admin_username, action, details, type) values ($1, $2, $3, $4)`,
-      [user.username, "Owner Login", `Admin ${user.name} logged into the dashboard.`, "auth"],
+      [user.username, "User Login", `${user.role.toUpperCase()} ${user.name} logged into the portal.`, "auth"],
     );
 
     return {
@@ -152,6 +165,90 @@ export const adminRegister = createServerFn({ method: "POST" })
       const msg = err instanceof Error ? err.message : "Failed to register account";
       return { success: false, error: msg };
     }
+  });
+
+export const listStaffUsers = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AdminUser[]> => {
+    try {
+      const sql = await getSql();
+      return sql.query<AdminUser>(
+        `select id, username, email, name, role, created_at from admin_users order by created_at desc`
+      );
+    } catch {
+      return [];
+    }
+  }
+);
+
+export const createStaffUser = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      name: z.string().min(2, "Full name is required"),
+      username: z.string().min(3, "Username must be at least 3 characters"),
+      email: z.string().email("Invalid email"),
+      password: z.string().min(6, "Password must be at least 6 characters"),
+      role: z.enum(["owner", "staff"]).default("staff"),
+    })
+  )
+  .handler(async ({ data }) => {
+    const session = await getAdminSession();
+    if (!session || session.role !== "owner") {
+      return { success: false, error: "Unauthorized. Only shop owners can create staff accounts." };
+    }
+
+    const sql = await getSql();
+    const hashedPassword = await hashPassword(data.password);
+
+    try {
+      const existing = await sql.query<{ username: string }>(
+        `select username from admin_users where username = $1 or email = $2 limit 1`,
+        [data.username, data.email]
+      );
+
+      if (existing.length > 0) {
+        return { success: false, error: "Username or email is already registered." };
+      }
+
+      const rows = await sql.query<AdminUser>(
+        `insert into admin_users (username, email, password_hash, name, role)
+         values ($1, $2, $3, $4, $5)
+         returning id, username, email, name, role, created_at`,
+        [data.username, data.email, hashedPassword, data.name, data.role]
+      );
+
+      await sql.query(
+        `insert into activity_logs (admin_username, action, details, type) values ($1, $2, $3, $4)`,
+        [session.username, "Staff Created", `Created ${data.role} account for ${data.name} (@${data.username}).`, "auth"]
+      );
+
+      return { success: true, user: rows[0] };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create user account";
+      return { success: false, error: msg };
+    }
+  });
+
+export const deleteStaffUser = createServerFn({ method: "POST" })
+  .validator(z.object({ id: z.number().positive() }))
+  .handler(async ({ data }) => {
+    const session = await getAdminSession();
+    if (!session || session.role !== "owner") {
+      return { success: false, error: "Unauthorized. Only shop owners can remove accounts." };
+    }
+
+    if (session.id === data.id) {
+      return { success: false, error: "You cannot delete your own logged-in owner account." };
+    }
+
+    const sql = await getSql();
+    await sql.query(`delete from admin_users where id = $1`, [data.id]);
+
+    await sql.query(
+      `insert into activity_logs (admin_username, action, details, type) values ($1, $2, $3, $4)`,
+      [session.username, "Staff Deleted", `Removed user account ID ${data.id}.`, "auth"]
+    );
+
+    return { success: true };
   });
 
 export const adminLogout = createServerFn({ method: "POST" }).handler(async () => {

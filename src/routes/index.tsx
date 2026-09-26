@@ -2,43 +2,53 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, MapPin, Phone, Shield, Truck } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { Button } from "@/components/ui/button";
-import { listCategories, listHotProducts } from "@/lib/catalog";
+import { listCategories, listHotProducts, getPublicShopSettings } from "@/lib/catalog";
 import { SHOP, whatsappUrl } from "@/lib/shop";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
-    const [categories, hot] = await Promise.all([
+    const [categories, hot, dbSettings] = await Promise.all([
       listCategories(),
       listHotProducts(),
+      getPublicShopSettings(),
     ]);
-    return { categories, hot };
+    return { categories, hot, dbSettings };
   },
   component: Home,
 });
 
 function Home() {
-  const { categories, hot } = Route.useLoaderData();
+  const { categories, hot, dbSettings } = Route.useLoaderData();
+
+  const heroImage = dbSettings.hero_image || "/parts/workshop.jpg";
+  const locationTag = dbSettings.hero_location_tag || dbSettings.store_address || SHOP.city;
+  const heroTitle = dbSettings.hero_title || "Japanese and European parts. On the shelf.";
+  const heroSubtitle =
+    dbSettings.hero_subtitle ||
+    "Spare parts for Japanese and European vehicles. Headlamps, taillamps, grills and workshop fluids — priced in UGX, ready for pickup or WhatsApp order.";
+  const whatsappNum = dbSettings.store_whatsapp || SHOP.whatsapp;
+  const storeAddress = dbSettings.store_address || SHOP.address;
+  const storeHours = dbSettings.store_hours || SHOP.hoursWeek;
 
   return (
     <div>
       <section className="relative isolate overflow-hidden">
         <img
-          src="/parts/workshop.jpg"
-          alt=""
+          src={heroImage}
+          alt="Workshop background"
           className="absolute inset-0 size-full object-cover"
         />
         <div className="absolute inset-0 bg-background/75" />
         <div className="relative mx-auto flex max-w-6xl flex-col gap-6 px-4 py-20 sm:py-28">
           <p className="text-xs font-medium tracking-[0.2em] text-steel uppercase">
-            Nakawa, Kampala
+            {locationTag}
           </p>
           <h1 className="font-display max-w-3xl text-5xl leading-[0.95] font-semibold tracking-tight sm:text-7xl">
-            Japanese and European parts. On the shelf.
+            {heroTitle}
           </h1>
           <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            {SHOP.tagline} Headlamps, taillamps, grills and workshop fluids —
-            priced in UGX, ready for pickup or WhatsApp order.
+            {heroSubtitle}
           </p>
           <div className="flex flex-wrap gap-3">
             <Button asChild size="lg">
@@ -51,6 +61,7 @@ function Home() {
               <a
                 href={whatsappUrl(
                   "Hello TOOL HUB, I need a spare part. I will send the vehicle details.",
+                  whatsappNum
                 )}
                 target="_blank"
                 rel="noreferrer"
@@ -151,10 +162,10 @@ function Home() {
           <MapPin className="mt-1 size-5 text-steel" />
           <div>
             <p className="font-display text-2xl font-semibold tracking-tight">
-              {SHOP.address}
+              {storeAddress}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {SHOP.hoursWeek}. {SHOP.hoursSunday}.
+              {storeHours}. {SHOP.hoursSunday}.
             </p>
           </div>
         </div>

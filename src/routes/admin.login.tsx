@@ -95,13 +95,7 @@ function AdminLoginPage() {
             </div>
           </div>
 
-          <div className="rounded-lg bg-zinc-800/50 p-3 text-xs text-zinc-400">
-            <span className="font-semibold text-amber-400">Default Credentials:</span>
-            <div className="mt-1 flex justify-between font-mono text-[11px]">
-              <span>Username: <strong className="text-zinc-200">admin</strong></span>
-              <span>Password: <strong className="text-zinc-200">password123</strong></span>
-            </div>
-          </div>
+
 
           <button
             type="submit"

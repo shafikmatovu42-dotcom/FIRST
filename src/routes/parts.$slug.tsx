@@ -9,6 +9,7 @@ import { WhatsAppIcon } from "@/components/whatsapp-icon";
 import {
   getProductBySlug,
   listRelatedProducts,
+  getPublicShopSettings,
 } from "@/lib/catalog";
 import { useCart } from "@/lib/cart-store";
 import { formatUgx } from "@/lib/format";
@@ -16,12 +17,15 @@ import { SHOP, whatsappUrl } from "@/lib/shop";
 
 export const Route = createFileRoute("/parts/$slug")({
   loader: async ({ params }) => {
-    const product = await getProductBySlug({ data: { slug: params.slug } });
+    const [product, dbSettings] = await Promise.all([
+      getProductBySlug({ data: { slug: params.slug } }),
+      getPublicShopSettings(),
+    ]);
     if (!product) throw notFound();
     const related = await listRelatedProducts({
       data: { slug: product.slug, category: product.category_slug },
     });
-    return { product, related };
+    return { product, related, dbSettings };
   },
   notFoundComponent: () => (
     <div className="mx-auto max-w-6xl px-4 py-20">
@@ -40,11 +44,15 @@ export const Route = createFileRoute("/parts/$slug")({
 });
 
 function ProductPage() {
-  const { product, related } = Route.useLoaderData();
+  const { product, related, dbSettings } = Route.useLoaderData();
   const add = useCart((s) => s.add);
   const [qty, setQty] = useState(1);
 
-  const message = `Hello TOOL HUB, I want ${product.name} (${formatUgx(product.price_ugx)}). Is it in stock?`;
+  const whatsappNum = dbSettings.store_whatsapp || SHOP.whatsapp;
+  const phoneDisplay = dbSettings.store_phone || SHOP.phoneDisplay;
+  const phoneTel = dbSettings.store_phone || SHOP.phoneTel;
+
+  const message = `Hello ${dbSettings.store_name || SHOP.name}, I want ${product.name} (${formatUgx(product.price_ugx)}). Is it in stock?`;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -122,15 +130,15 @@ function ProductPage() {
 
           <div className="mt-4 flex flex-wrap gap-3">
             <Button variant="outline" asChild>
-              <a href={whatsappUrl(message)} target="_blank" rel="noreferrer">
+              <a href={whatsappUrl(message, whatsappNum)} target="_blank" rel="noreferrer">
                 <WhatsAppIcon className="size-4" />
                 Ask on WhatsApp
               </a>
             </Button>
             <Button variant="ghost" asChild>
-              <a href={`tel:${SHOP.phoneTel}`}>
+              <a href={`tel:${phoneTel}`}>
                 <Phone className="size-4" />
-                {SHOP.phoneDisplay}
+                {phoneDisplay}
               </a>
             </Button>
           </div>

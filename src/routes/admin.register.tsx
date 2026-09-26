@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { Lock, User, Mail, UserCheck, ArrowRight, ShieldCheck, Wrench, AlertCircle } from "lucide-react";
-import { adminRegister } from "@/lib/admin-auth";
+import { Lock, User, Mail, UserCheck, ArrowRight, ShieldCheck, Wrench, AlertCircle, ShieldAlert } from "lucide-react";
+import { adminRegister, checkHasAdminUser } from "@/lib/admin-auth";
 
 export const Route = createFileRoute("/admin/register")({
+  loader: async () => {
+    const { hasAdmin, count } = await checkHasAdminUser();
+    return { hasAdmin, count };
+  },
   component: AdminRegisterPage,
 });
 
 function AdminRegisterPage() {
+  const { hasAdmin } = Route.useLoaderData();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
@@ -48,6 +53,40 @@ function AdminRegisterPage() {
     }
   };
 
+  if (hasAdmin) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 py-12 text-zinc-100">
+        <div className="w-full max-w-md space-y-6 rounded-2xl border border-zinc-800 bg-zinc-900/90 p-8 text-center shadow-2xl backdrop-blur-xl">
+          <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 ring-1 ring-amber-500/30">
+            <ShieldAlert className="size-7" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-white">Owner Account Initialized</h2>
+            <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+              An active Shop Owner account already exists for this store. Public registration is locked to protect your database.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs text-zinc-300 text-left space-y-1">
+            <p className="font-semibold text-white">Need Portal Access?</p>
+            <p className="text-zinc-400">
+              - If you are the Shop Owner, sign in with your credentials.
+              - If you are a Staff member, ask your Shop Owner to add a Staff account for you in <strong>Shop Settings</strong>.
+            </p>
+          </div>
+
+          <Link
+            to="/admin/login"
+            className="flex items-center justify-center gap-2 rounded-xl bg-amber-500 py-3 px-4 text-sm font-bold text-zinc-950 hover:bg-amber-400"
+          >
+            <span>Proceed to Sign In</span>
+            <ArrowRight className="size-4" />
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 py-12 text-zinc-100">
       <div className="w-full max-w-md space-y-8 rounded-2xl border border-zinc-800 bg-zinc-900/90 p-8 shadow-2xl backdrop-blur-xl">
@@ -56,7 +95,7 @@ function AdminRegisterPage() {
             <Wrench className="size-7" />
           </div>
           <h2 className="mt-4 text-2xl font-bold tracking-tight text-white">Create Owner Account</h2>
-          <p className="mt-1 text-sm text-zinc-400">Register as a shop administrator to manage inventory & orders.</p>
+          <p className="mt-1 text-sm text-zinc-400">Register as the primary shop administrator to manage inventory & orders.</p>
         </div>
 
         {error && (

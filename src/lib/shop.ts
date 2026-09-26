@@ -12,6 +12,8 @@ export const SHOP = {
   city: "Kampala",
 } as const;
 
-export function whatsappUrl(text: string): string {
-  return `https://wa.me/${SHOP.whatsapp}?text=${encodeURIComponent(text)}`;
+export function whatsappUrl(text: string, overrideNumber?: string): string {
+  const raw = overrideNumber || SHOP.whatsapp;
+  const num = raw.replace(/[^0-9]/g, "");
+  return `https://wa.me/${num}?text=${encodeURIComponent(text)}`;
 }
