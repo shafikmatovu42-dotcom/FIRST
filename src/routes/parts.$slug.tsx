@@ -27,6 +27,59 @@ export const Route = createFileRoute("/parts/$slug")({
     });
     return { product, related, dbSettings };
   },
+  head: ({ loaderData }) => {
+    if (!loaderData?.product) return {};
+    const { product } = loaderData;
+    const title = `${product.name} — ${product.brand} | TOOL HUB Kampala`;
+    const description = `${product.description} Price: UGX ${product.price_ugx.toLocaleString()}. Grade: ${product.grade}. Fitment: ${product.fitment || "Vehicle Spare Part"}. Pickup in Nakawa, Kampala.`;
+    const image = product.image.startsWith("http") ? product.image : `https://toolhub.ug${product.image}`;
+
+    const jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": product.name,
+      "image": [image],
+      "description": product.description,
+      "sku": product.slug,
+      "brand": {
+        "@type": "Brand",
+        "name": product.brand,
+      },
+      "offers": {
+        "@type": "Offer",
+        "url": `https://toolhub.ug/parts/${product.slug}`,
+        "priceCurrency": "UGX",
+        "price": product.price_ugx,
+        "availability": product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        "itemCondition": product.grade === "OEM" ? "https://schema.org/NewCondition" : "https://schema.org/RefurbishedCondition",
+      },
+    };
+
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:image", content: image },
+        { property: "og:type", content: "product" },
+        { property: "og:url", content: `https://toolhub.ug/parts/${product.slug}` },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: description },
+        { name: "twitter:image", content: image },
+      ],
+      links: [
+        { rel: "canonical", href: `https://toolhub.ug/parts/${product.slug}` },
+      ],
+      scripts: [
+        {
+          type: "application/ld+json",
+          children: JSON.stringify(jsonLd),
+        },
+      ],
+    };
+  },
   notFoundComponent: () => (
     <div className="mx-auto max-w-6xl px-4 py-20">
       <h1 className="font-display text-3xl font-semibold">Part not listed</h1>
