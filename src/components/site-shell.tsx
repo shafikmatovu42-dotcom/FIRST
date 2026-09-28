@@ -9,8 +9,8 @@ import { SHOP, whatsappUrl } from "@/lib/shop";
 import { getPublicShopSettings } from "@/lib/catalog";
 
 export function SiteShell() {
-  const [shopPhone, setShopPhone] = useState(SHOP.phoneTel);
-  const [whatsappNum, setWhatsappNum] = useState(SHOP.whatsapp);
+  const [shopPhone, setShopPhone] = useState<string>(SHOP.phoneTel);
+  const [whatsappNum, setWhatsappNum] = useState<string>(SHOP.whatsapp);
 
   useEffect(() => {
     void (async () => {

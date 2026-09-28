@@ -27,7 +27,7 @@ function AdminLoginPage() {
     try {
       const res = await adminLogin({ data: { username: username.trim(), password } });
       if (res.success) {
-        navigate({ to: "/admin" });
+        window.location.href = "/admin";
       } else {
         setError(res.error || "Login failed");
       }

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, MapPin, Phone, Shield, Truck } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
@@ -21,30 +22,59 @@ export const Route = createFileRoute("/")({
 function Home() {
   const { categories, hot, dbSettings } = Route.useLoaderData();
 
-  const heroImage = dbSettings.hero_image || "/parts/workshop.jpg";
+  const heroImages = [
+    dbSettings.hero_image_1 || dbSettings.hero_image || "/parts/workshop.jpg",
+    dbSettings.hero_image_2 || "/parts/headlamp.jpg",
+    dbSettings.hero_image_3 || "/parts/grill.jpg",
+    dbSettings.hero_image_4 || "/parts/jack.jpg",
+    dbSettings.hero_image_5 || "/parts/lubricant.jpg",
+  ].filter(Boolean);
+
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    if (heroImages.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % heroImages.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [heroImages.length]);
+
   const locationTag = dbSettings.hero_location_tag || dbSettings.store_address || SHOP.city;
-  const heroTitle = dbSettings.hero_title || "Japanese and European parts. On the shelf.";
+  const heroTitle = dbSettings.hero_title || "Quality spanners, jacks & hardware tools.";
   const heroSubtitle =
     dbSettings.hero_subtitle ||
-    "Spare parts for Japanese and European vehicles. Headlamps, taillamps, grills and workshop fluids — priced in UGX, ready for pickup or WhatsApp order.";
+    "Your number one tool station for quality spanners, hydraulic jacks, multimeters, socket sets and workshop equipment — priced in UGX.";
   const whatsappNum = dbSettings.store_whatsapp || SHOP.whatsapp;
   const storeAddress = dbSettings.store_address || SHOP.address;
   const storeHours = dbSettings.store_hours || SHOP.hoursWeek;
 
   return (
     <div>
-      <section className="relative isolate overflow-hidden">
-        <img
-          src={heroImage}
-          alt="Workshop background"
-          className="absolute inset-0 size-full object-cover"
-        />
-        <div className="absolute inset-0 bg-background/75" />
+      <section className="relative isolate min-h-[420px] overflow-hidden">
+        {heroImages.map((img, idx) => (
+          <img
+            key={idx}
+            src={img}
+            alt={`Tool Hub background slide ${idx + 1}`}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = "/parts/workshop.jpg";
+            }}
+            className={`absolute inset-0 size-full object-cover transition-all duration-1000 ease-in-out ${
+              idx === currentSlide ? "opacity-100 scale-100" : "opacity-0 scale-105 pointer-events-none"
+            }`}
+          />
+        ))}
+
+        {/* Lightened gradient overlay to show vibrant clear background photos */}
+        <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/60 to-background/30" />
+
         <div className="relative mx-auto flex max-w-6xl flex-col gap-6 px-4 py-20 sm:py-28">
-          <p className="text-xs font-medium tracking-[0.2em] text-steel uppercase">
+          <p className="text-xs font-semibold tracking-[0.2em] text-amber-500 uppercase">
             {locationTag}
           </p>
-          <h1 className="font-display max-w-3xl text-5xl leading-[0.95] font-semibold tracking-tight sm:text-7xl">
+          <h1 className="font-display max-w-3xl text-5xl leading-[0.95] font-semibold tracking-tight text-foreground sm:text-7xl">
             {heroTitle}
           </h1>
           <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -53,14 +83,14 @@ function Home() {
           <div className="flex flex-wrap gap-3">
             <Button asChild size="lg">
               <Link to="/shop" search={{}}>
-                Browse parts
+                Browse tools
                 <ArrowRight className="size-4" />
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline">
               <a
                 href={whatsappUrl(
-                  "Hello TOOL HUB, I need a spare part. I will send the vehicle details.",
+                  "Hello TOOL HUB, I need a tool. I will send the specifications.",
                   whatsappNum
                 )}
                 target="_blank"
@@ -71,13 +101,29 @@ function Home() {
               </a>
             </Button>
           </div>
+
+          {/* Slide Indicator Dots */}
+          {heroImages.length > 1 && (
+            <div className="mt-4 flex items-center gap-2">
+              {heroImages.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentSlide(idx)}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    idx === currentSlide ? "w-8 bg-amber-500" : "w-2 bg-muted-foreground/40 hover:bg-muted-foreground"
+                  }`}
+                  aria-label={`Go to slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 py-14">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-medium tracking-widest text-steel uppercase">
+            <p className="text-xs font-semibold tracking-widest text-amber-500 uppercase">
               Categories
             </p>
             <h2 className="font-display mt-2 text-3xl font-semibold tracking-tight">
@@ -86,7 +132,7 @@ function Home() {
           </div>
           <Button variant="link" asChild className="hidden sm:inline-flex">
             <Link to="/shop" search={{}}>
-              All parts
+              All tools
             </Link>
           </Button>
         </div>
@@ -110,8 +156,8 @@ function Home() {
       <section className="mx-auto max-w-6xl px-4 pb-14">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-medium tracking-widest text-steel uppercase">
-              Hot
+            <p className="text-xs font-semibold tracking-widest text-amber-500 uppercase">
+              Hot Tools
             </p>
             <h2 className="font-display mt-2 text-3xl font-semibold tracking-tight">
               Moving this week
@@ -128,16 +174,16 @@ function Home() {
       <section className="border-y border-border bg-card">
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-3">
           <div className="flex gap-3">
-            <Shield className="mt-0.5 size-5 text-steel" />
+            <Shield className="mt-0.5 size-5 text-amber-500" />
             <div>
-              <p className="font-medium">OEM and aftermarket</p>
+              <p className="font-medium">Heavy Duty & Standard Grade</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Grade is marked on every card so you know what you are buying.
+                Grade is marked on every tool so you know what you are buying.
               </p>
             </div>
           </div>
           <div className="flex gap-3">
-            <Truck className="mt-0.5 size-5 text-steel" />
+            <Truck className="mt-0.5 size-5 text-amber-500" />
             <div>
               <p className="font-medium">Pickup same day</p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -146,11 +192,11 @@ function Home() {
             </div>
           </div>
           <div className="flex gap-3">
-            <Phone className="mt-0.5 size-5 text-steel" />
+            <Phone className="mt-0.5 size-5 text-amber-500" />
             <div>
               <p className="font-medium">Talk before you travel</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Send the chassis, year and a photo. We confirm fitment on WhatsApp.
+                Send a photo or specs of the tool you need. We confirm stock on WhatsApp.
               </p>
             </div>
           </div>
@@ -159,7 +205,7 @@ function Home() {
 
       <section className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-14 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-3">
-          <MapPin className="mt-1 size-5 text-steel" />
+          <MapPin className="mt-1 size-5 text-amber-500" />
           <div>
             <p className="font-display text-2xl font-semibold tracking-tight">
               {storeAddress}

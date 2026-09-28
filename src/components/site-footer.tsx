@@ -4,8 +4,18 @@ import { Clock, Mail, MapPin, Phone } from "lucide-react";
 import { SHOP } from "@/lib/shop";
 import { getPublicShopSettings } from "@/lib/catalog";
 
+type FooterInfo = {
+  name: string;
+  tagline: string;
+  phoneDisplay: string;
+  phoneTel: string;
+  email: string;
+  address: string;
+  hoursWeek: string;
+};
+
 export function SiteFooter() {
-  const [info, setInfo] = useState({
+  const [info, setInfo] = useState<FooterInfo>({
     name: SHOP.name,
     tagline: SHOP.tagline,
     phoneDisplay: SHOP.phoneDisplay,
@@ -52,17 +62,17 @@ export function SiteFooter() {
           <ul className="mt-3 space-y-2 text-sm">
             <li>
               <Link to="/shop" search={{}} className="hover:text-steel">
-                All parts
+                All tools
               </Link>
             </li>
             <li>
-              <Link to="/shop" search={{ cat: "headlamps" }} className="hover:text-steel">
-                Headlamps
+              <Link to="/shop" search={{ cat: "spanners" }} className="hover:text-steel">
+                Spanners
               </Link>
             </li>
             <li>
-              <Link to="/shop" search={{ cat: "taillamps" }} className="hover:text-steel">
-                Taillamps
+              <Link to="/shop" search={{ cat: "jacks" }} className="hover:text-steel">
+                Hydraulic Jacks
               </Link>
             </li>
             <li>

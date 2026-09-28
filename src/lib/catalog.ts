@@ -64,9 +64,15 @@ export const listProducts = createServerFn({ method: "GET" }).handler(
 export const listHotProducts = createServerFn({ method: "GET" }).handler(
   async () => {
     const sql = await getSql();
-    return sql.query<Product>(
+    const rows = await sql.query<Product>(
       `select ${COLS} from products where hot = true order by price_ugx desc limit 8`,
     );
+    if (rows.length < 8) {
+      return sql.query<Product>(
+        `select ${COLS} from products order by hot desc, price_ugx desc limit 8`,
+      );
+    }
+    return rows;
   },
 );
 

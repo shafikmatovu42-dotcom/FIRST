@@ -14,6 +14,7 @@ import { cartCount, useCart } from "@/lib/cart-store";
 import { shopSearch } from "@/lib/shop-search";
 import { SHOP } from "@/lib/shop";
 import { listCategories, getPublicShopSettings, Category } from "@/lib/catalog";
+import { NotificationBell } from "@/components/notification-bell";
 
 type NavLink = {
   to: "/" | "/shop" | "/about" | "/contact" | "/admin";
@@ -35,7 +36,11 @@ export function SiteHeader() {
     { to: "/contact", label: "Contact" },
     { to: "/admin" as any, label: "Owner Portal" },
   ]);
-  const [branding, setBranding] = useState({
+  type HeaderBranding = {
+    name: string;
+    logo: string;
+  };
+  const [branding, setBranding] = useState<HeaderBranding>({
     name: SHOP.name,
     logo: "",
   });
@@ -106,22 +111,20 @@ export function SiteHeader() {
     setOpen(false);
   }
 
+  useEffect(() => {
+    if (branding.logo && typeof document !== "undefined") {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.href = branding.logo;
+    }
+  }, [branding.logo]);
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm">
-      <div className="hidden border-b border-border bg-elevated md:block">
-        <div className="mx-auto flex h-9 max-w-6xl items-center justify-between px-4 text-xs text-muted-foreground">
-          <p>
-            {SHOP.city} · {SHOP.hoursWeek}
-          </p>
-          <a
-            href={`tel:${SHOP.phoneTel}`}
-            className="inline-flex items-center gap-1.5 text-foreground hover:text-steel"
-          >
-            <Phone className="size-3.5" />
-            {SHOP.phoneDisplay}
-          </a>
-        </div>
-      </div>
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
         <Link to="/" className="flex shrink-0 items-center gap-2.5">
           <span className="flex size-9 items-center justify-center overflow-hidden rounded-md bg-primary text-primary-foreground">
@@ -168,14 +171,15 @@ export function SiteHeader() {
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search Hilux, Premio, lamp…"
-              className="h-10 pl-9"
+              placeholder="Search Spanner, Jack, Multimeter…"
+              className="h-10 pl-9 text-base md:text-sm"
               aria-label="Search parts"
             />
           </div>
         </form>
 
-        <div className="ml-auto flex items-center gap-1 md:ml-0">
+        <div className="ml-auto flex items-center gap-1.5 md:ml-0">
+          <NotificationBell />
           <Button variant="ghost" size="icon" asChild>
             <Link to="/cart" aria-label="Cart">
               <span className="relative">

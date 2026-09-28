@@ -13,20 +13,20 @@ function AboutPage() {
         About
       </p>
       <h1 className="font-display mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">
-        A parts counter, not a marketplace.
+        A dedicated tool station, built for quality.
       </h1>
       <div className="mt-8 space-y-5 text-base leading-relaxed text-muted-foreground">
         <p>
-          TOOL HUB is a Kampala spare-parts desk for Japanese and European
-          vehicles. We buy the way the market actually works: lamps, body panels,
-          oils and the odd workshop tool — checked on the shelf, priced in UGX.
+          TOOL HUB is a Kampala hardware and tool desk for industrial spanners, hydraulic jacks,
+          digital multimeters, piston ring squeezers, combination sets and workshop equipment.
+          All items are checked on the shelf and priced transparently in UGX.
         </p>
         <p>
-          Fitment is the whole job. Send the year, chassis and a photo of the old
-          part. We will tell you OEM versus aftermarket before you ride to Nakawa.
+          Durability is the whole job. Send a photo or specifications of the tool you need on WhatsApp.
+          We confirm stock and grade before you travel.
         </p>
         <p>
-          The shop floor is {SHOP.address}. {SHOP.hoursWeek}. {SHOP.hoursSunday}.
+          The shop counter is located at {SHOP.address}. {SHOP.hoursWeek}. {SHOP.hoursSunday}.
         </p>
       </div>
       <div className="mt-10 flex flex-wrap gap-3">

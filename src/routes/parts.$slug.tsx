@@ -31,7 +31,7 @@ export const Route = createFileRoute("/parts/$slug")({
     if (!loaderData?.product) return {};
     const { product } = loaderData;
     const title = `${product.name} — ${product.brand} | TOOL HUB Kampala`;
-    const description = `${product.description} Price: UGX ${product.price_ugx.toLocaleString()}. Grade: ${product.grade}. Fitment: ${product.fitment || "Vehicle Spare Part"}. Pickup in Nakawa, Kampala.`;
+    const description = `${product.description} Price: UGX ${product.price_ugx.toLocaleString()}. Grade: ${product.grade}. Specs: ${product.fitment || "Hardware Tool / Workshop Equipment"}. Pickup in Nakawa / Kiseka, Kampala.`;
     const image = product.image.startsWith("http") ? product.image : `https://toolhub.ug${product.image}`;
 
     const jsonLd = {
@@ -123,6 +123,10 @@ function ProductPage() {
           <img
             src={product.image}
             alt={product.name}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = "/parts/headlamp.jpg";
+            }}
             className="aspect-square w-full object-cover"
           />
         </div>

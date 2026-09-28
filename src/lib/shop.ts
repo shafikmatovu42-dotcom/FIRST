@@ -1,7 +1,7 @@
 export const SHOP = {
   name: "TOOL HUB",
   shortName: "Tool Hub",
-  tagline: "Spare parts for Japanese and European vehicles.",
+  tagline: "Quality spanners, jacks, hand tools and workshop equipment.",
   phoneDisplay: "0750 441 220",
   phoneTel: "+256750441220",
   whatsapp: "256750441220",

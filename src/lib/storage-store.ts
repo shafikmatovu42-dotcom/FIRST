@@ -96,50 +96,6 @@ export async function uploadProductImage(file: File): Promise<string> {
     console.warn("[Storage Client] Server upload failed, using fallback:", err);
   }
 
-  // Fallback mode: lightweight local canvas compression
-  return new Promise((resolve) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      const MAX_WIDTH = 800;
-      const MAX_HEIGHT = 800;
-      let width = img.width;
-      let height = img.height;
-
-      if (width > height) {
-        if (width > MAX_WIDTH) {
-          height *= MAX_WIDTH / width;
-          width = MAX_WIDTH;
-        }
-      } else {
-        if (height > MAX_HEIGHT) {
-          width *= MAX_HEIGHT / height;
-          height = MAX_HEIGHT;
-        }
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.75);
-        URL.revokeObjectURL(url);
-        resolve(dataUrl);
-      } else {
-        URL.revokeObjectURL(url);
-        resolve("/parts/headlamp.jpg");
-      }
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve("/parts/headlamp.jpg");
-    };
-
-    img.src = url;
-  });
+  // Fallback mode: return lightweight placeholder URL instead of saving bloated base64 into PostgreSQL DB
+  return Promise.resolve("/parts/headlamp.jpg");
 }

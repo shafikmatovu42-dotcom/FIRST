@@ -42,7 +42,7 @@ function AdminRegisterPage() {
       });
 
       if (res.success) {
-        navigate({ to: "/admin" });
+        window.location.href = "/admin";
       } else {
         setError(res.error || "Registration failed");
       }

@@ -18,12 +18,16 @@ import {
   Layers,
   Sparkles,
   AlertCircle,
+  Bell,
+  Edit2,
+  Send,
 } from "lucide-react";
 import { getAdminSession, listStaffUsers, createStaffUser, deleteStaffUser, AdminUser } from "@/lib/admin-auth";
 import { listCategories, Category } from "@/lib/catalog";
 import { createCategory, deleteCategory, getShopSettings, updateShopSettings } from "@/lib/admin-catalog";
 import { uploadProductImage } from "@/lib/storage-store";
 import { SHOP } from "@/lib/shop";
+import { useNotificationStore, requestPushPermission, NotificationItem } from "@/lib/notification-store";
 
 export const Route = createFileRoute("/admin/settings")({
   loader: async () => {
@@ -41,7 +45,11 @@ export const Route = createFileRoute("/admin/settings")({
 function AdminSettingsPage() {
   const { session, staffList, categoriesList, dbSettings } = Route.useLoaderData();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"profile" | "categories" | "staff" | "cloud">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "categories" | "staff" | "notifications" | "cloud">("profile");
+
+  const { notifications, addNotification, deleteNotification, updateNotification } = useNotificationStore();
+  const [notifForm, setNotifForm] = useState({ title: "", message: "", type: "info" as "info" | "success" | "alert" });
+  const [editNotifId, setEditNotifId] = useState<string | null>(null);
 
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -63,10 +71,14 @@ function AdminSettingsPage() {
     email: dbSettings.store_email || SHOP.email,
     address: dbSettings.store_address || SHOP.address,
     hoursWeek: dbSettings.store_hours || SHOP.hoursWeek,
-    heroTitle: dbSettings.hero_title || "Japanese and European parts. On the shelf.",
-    heroSubtitle: dbSettings.hero_subtitle || "Spare parts for Japanese and European vehicles. Headlamps, taillamps, grills and workshop fluids — priced in UGX, ready for pickup or WhatsApp order.",
-    heroImage: dbSettings.hero_image || "/parts/workshop.jpg",
-    heroLocationTag: dbSettings.hero_location_tag || "NAKAWA, KAMPALA",
+    heroTitle: dbSettings.hero_title || "Quality spanners, jacks & hardware tools.",
+    heroSubtitle: dbSettings.hero_subtitle || "Your number one tool station. Industrial spanners, hydraulic jacks, multimeters, socket sets and workshop equipment — priced in UGX.",
+    heroImage1: dbSettings.hero_image_1 || dbSettings.hero_image || "/parts/workshop.jpg",
+    heroImage2: dbSettings.hero_image_2 || "/parts/headlamp.jpg",
+    heroImage3: dbSettings.hero_image_3 || "/parts/grill.jpg",
+    heroImage4: dbSettings.hero_image_4 || "/parts/jack.jpg",
+    heroImage5: dbSettings.hero_image_5 || "/parts/lubricant.jpg",
+    heroLocationTag: dbSettings.hero_location_tag || "KISEKA MARKET, KAMPALA",
   });
 
   // 2. Category Form State
@@ -158,18 +170,19 @@ function AdminSettingsPage() {
     }
   };
 
-  // Upload Hero Background Image to Supabase Storage CDN
-  const handleHeroImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Upload Hero Background Image (1 of 5) to Supabase Storage CDN
+  const handleHeroImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: 1 | 2 | 3 | 4 | 5) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadingHero(true);
     try {
       const url = await uploadProductImage(file);
-      setShopInfo((prev) => ({ ...prev, heroImage: url }));
-      showFeedback({ type: "success", text: "Homepage Hero background image uploaded to CDN!" });
+      const key = `heroImage${index}` as keyof typeof shopInfo;
+      setShopInfo((prev) => ({ ...prev, [key]: url }));
+      showFeedback({ type: "success", text: `Hero Slideshow Image #${index} uploaded to Supabase CDN!` });
     } catch {
-      showFeedback({ type: "error", text: "Failed to upload hero image." });
+      showFeedback({ type: "error", text: `Failed to upload hero image #${index}.` });
     } finally {
       setUploadingHero(false);
     }
@@ -194,7 +207,12 @@ function AdminSettingsPage() {
             store_hours: shopInfo.hoursWeek,
             hero_title: shopInfo.heroTitle,
             hero_subtitle: shopInfo.heroSubtitle,
-            hero_image: shopInfo.heroImage,
+            hero_image: shopInfo.heroImage1,
+            hero_image_1: shopInfo.heroImage1,
+            hero_image_2: shopInfo.heroImage2,
+            hero_image_3: shopInfo.heroImage3,
+            hero_image_4: shopInfo.heroImage4,
+            hero_image_5: shopInfo.heroImage5,
             hero_location_tag: shopInfo.heroLocationTag,
           },
         },
@@ -375,6 +393,16 @@ function AdminSettingsPage() {
         </button>
 
         <button
+          onClick={() => setActiveTab("notifications")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition ${
+            activeTab === "notifications" ? "bg-amber-500 text-zinc-950 shadow-md" : "bg-zinc-900 text-zinc-400 hover:text-white"
+          }`}
+        >
+          <Bell className="size-4" />
+          <span>Notifications & PWA Alerts ({notifications.length})</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab("cloud")}
           className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition ${
             activeTab === "cloud" ? "bg-amber-500 text-zinc-950 shadow-md" : "bg-zinc-900 text-zinc-400 hover:text-white"
@@ -489,32 +517,53 @@ function AdminSettingsPage() {
 
             {/* Hero Background Image Uploader */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400">
-                Hero Background Image (Uploaded to Supabase CDN)
+              <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1">
+                Homepage Hero Slideshow Background Images (Upload Up to 5 Photos)
               </label>
-              <div className="mt-3 flex items-center gap-5">
-                <div className="h-20 w-32 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 flex items-center justify-center shrink-0 shadow-lg">
-                  {shopInfo.heroImage ? (
-                    <img src={shopInfo.heroImage} alt="Hero Background" className="size-full object-cover" />
-                  ) : (
-                    <Globe className="size-8 text-amber-500" />
-                  )}
-                </div>
+              <p className="text-xs text-zinc-400 mb-4">
+                Select or paste up to 5 background photos. The homepage hero section will automatically loop through them in a smooth cross-fade slideshow.
+              </p>
 
-                <div className="flex-1 space-y-2">
-                  <label className="flex items-center gap-2 rounded-xl border border-dashed border-zinc-700 bg-zinc-900 px-4 py-2.5 text-xs text-zinc-300 hover:border-amber-500 cursor-pointer">
-                    <Upload className="size-4 text-amber-500" />
-                    <span>{uploadingHero ? "Uploading Hero Image..." : "Upload New Hero Background Picture to Supabase CDN"}</span>
-                    <input type="file" accept="image/*" onChange={handleHeroImageUpload} className="hidden" />
-                  </label>
-                  <input
-                    type="text"
-                    value={shopInfo.heroImage}
-                    onChange={(e) => setShopInfo({ ...shopInfo, heroImage: e.target.value })}
-                    placeholder="Or paste Hero Image URL"
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900 p-2 text-xs text-zinc-300 focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {([1, 2, 3, 4, 5] as const).map((num) => {
+                  const key = `heroImage${num}` as keyof typeof shopInfo;
+                  const currentVal = shopInfo[key] as string;
+                  return (
+                    <div key={num} className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-medium text-zinc-400">
+                        <span>Slide Photo #{num}</span>
+                        {currentVal && <span className="text-emerald-400 font-mono text-[10px]">Ready</span>}
+                      </div>
+
+                      <div className="h-24 w-full overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 flex items-center justify-center">
+                        {currentVal ? (
+                          <img src={currentVal} alt={`Slide #${num}`} className="size-full object-cover" />
+                        ) : (
+                          <Globe className="size-6 text-zinc-600" />
+                        )}
+                      </div>
+
+                      <label className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-zinc-700 bg-zinc-900 py-1.5 px-2 text-[11px] text-zinc-300 hover:border-amber-500 cursor-pointer">
+                        <Upload className="size-3.5 text-amber-500 shrink-0" />
+                        <span className="truncate">{uploadingHero ? "Uploading..." : `Upload Slide #${num}`}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleHeroImageUpload(e, num)}
+                          className="hidden"
+                        />
+                      </label>
+
+                      <input
+                        type="text"
+                        value={currentVal || ""}
+                        onChange={(e) => setShopInfo({ ...shopInfo, [key]: e.target.value })}
+                        placeholder={`Image #${num} URL`}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-900 p-1.5 text-[11px] text-zinc-300 focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -864,7 +913,201 @@ function AdminSettingsPage() {
         </div>
       )}
 
-      {/* TAB 4: CLOUD & DEPLOYMENT */}
+      {/* TAB 4: NOTIFICATIONS & PWA ALERTS */}
+      {activeTab === "notifications" && (
+        <div className="space-y-6">
+          {/* Native PWA Phone Push Banner */}
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 backdrop-blur-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <Bell className="size-5 text-amber-500 animate-bounce" />
+                Native Device & PWA Phone Push Notifications
+              </h2>
+              <p className="text-xs text-zinc-300 mt-1 max-w-xl">
+                Enable device push alerts so customer orders and store announcements pop up directly on your mobile device or desktop—even before you open the application.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const granted = await requestPushPermission();
+                if (granted) {
+                  showFeedback({ type: "success", text: "Native phone & PWA push notifications enabled!" });
+                } else {
+                  showFeedback({ type: "error", text: "Push permission was denied or not supported in this browser." });
+                }
+              }}
+              className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-xs font-bold text-zinc-950 hover:bg-amber-400 shrink-0 shadow-lg"
+            >
+              <Send className="size-4" />
+              <span>Enable Device Push Alerts</span>
+            </button>
+          </div>
+
+          {/* Add / Edit Notification Form */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!notifForm.title || !notifForm.message) return;
+              if (editNotifId) {
+                updateNotification(editNotifId, notifForm.title, notifForm.message);
+                showFeedback({ type: "success", text: "Notification updated successfully!" });
+                setEditNotifId(null);
+              } else {
+                addNotification({
+                  title: notifForm.title,
+                  message: notifForm.message,
+                  type: notifForm.type,
+                });
+                showFeedback({ type: "success", text: "New notification published and sent!" });
+              }
+              setNotifForm({ title: "", message: "", type: "info" });
+            }}
+            className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6 backdrop-blur-xl space-y-4"
+          >
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Plus className="size-4 text-amber-500" />
+              {editNotifId ? "Edit Store Notification" : "Publish New Store Announcement / Notification"}
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold uppercase text-zinc-400">Notification Title</label>
+                <input
+                  type="text"
+                  required
+                  value={notifForm.title}
+                  onChange={(e) => setNotifForm({ ...notifForm, title: e.target.value })}
+                  placeholder="e.g. 50-Ton Jacks & Socket Sets Ready for Pickup"
+                  className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-2.5 text-sm text-white focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase text-zinc-400">Alert Type</label>
+                <select
+                  value={notifForm.type}
+                  onChange={(e) => setNotifForm({ ...notifForm, type: e.target.value as any })}
+                  className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-2.5 text-sm text-white focus:border-amber-500 focus:outline-none"
+                >
+                  <option value="info">Info (Blue)</option>
+                  <option value="success">Success (Green)</option>
+                  <option value="alert">Alert (Amber)</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase text-zinc-400">Message Content</label>
+              <textarea
+                rows={2}
+                required
+                value={notifForm.message}
+                onChange={(e) => setNotifForm({ ...notifForm, message: e.target.value })}
+                placeholder="Details of the announcement or order update..."
+                className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-2.5 text-sm text-white focus:border-amber-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              {editNotifId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditNotifId(null);
+                    setNotifForm({ title: "", message: "", type: "info" });
+                  }}
+                  className="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2 text-xs font-semibold text-zinc-300"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                type="submit"
+                className="flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-2 text-xs font-bold text-zinc-950 hover:bg-amber-400"
+              >
+                <Send className="size-3.5" />
+                <span>{editNotifId ? "Update Notification" : "Publish & Alert"}</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Existing Notifications Table */}
+          <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/60 backdrop-blur-xl">
+            <div className="p-4 border-b border-zinc-800 font-bold text-sm text-white flex items-center justify-between">
+              <span>Active Notifications ({notifications.length})</span>
+            </div>
+            <table className="w-full text-left text-sm text-zinc-300">
+              <thead className="border-b border-zinc-800 bg-zinc-950/80 text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                <tr>
+                  <th className="px-6 py-4">Title & Details</th>
+                  <th className="px-6 py-4">Type</th>
+                  <th className="px-6 py-4">Time</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/60">
+                {notifications.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-zinc-500">
+                      No notifications created yet.
+                    </td>
+                  </tr>
+                ) : (
+                  notifications.map((n) => (
+                    <tr key={n.id} className="transition hover:bg-zinc-800/40">
+                      <td className="px-6 py-4">
+                        <p className="font-semibold text-white">{n.title}</p>
+                        <p className="text-xs text-zinc-400 mt-0.5">{n.message}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span
+                          className={`rounded-lg px-2.5 py-1 text-[11px] font-bold uppercase ${
+                            n.type === "success"
+                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+                              : n.type === "alert"
+                              ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                              : "bg-blue-500/10 text-blue-400 border border-blue-500/30"
+                          }`}
+                        >
+                          {n.type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-zinc-400">{n.timestamp}</td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              setEditNotifId(n.id);
+                              setNotifForm({ title: n.title, message: n.message, type: n.type });
+                            }}
+                            className="flex size-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-amber-500 hover:text-zinc-950"
+                            title="Edit Notification"
+                          >
+                            <Edit2 className="size-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              deleteNotification(n.id);
+                              showFeedback({ type: "success", text: "Notification deleted." });
+                            }}
+                            className="flex size-8 items-center justify-center rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white"
+                            title="Delete Notification"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: CLOUD & DEPLOYMENT */}
       {activeTab === "cloud" && (
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6 backdrop-blur-xl space-y-4">
           <h2 className="text-base font-bold text-white flex items-center gap-2 border-b border-zinc-800 pb-3">

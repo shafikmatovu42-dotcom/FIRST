@@ -14,6 +14,10 @@ export function ProductCard({ product }: { product: Product }) {
         <img
           src={product.image}
           alt={product.name}
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = "/parts/headlamp.jpg";
+          }}
           className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
         />
         <div className="absolute top-3 left-3 flex gap-1.5">

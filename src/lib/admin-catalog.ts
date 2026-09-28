@@ -358,3 +358,71 @@ export const updateShopSettings = createServerFn({ method: "POST" })
       return { success: false, error: msg };
     }
   });
+
+export const bulkAutoAssignPhotos = createServerFn({ method: "POST" }).handler(
+  async () => {
+    const session = await getAdminSession();
+    if (!session) {
+      return { success: false, error: "Unauthorized." };
+    }
+
+    const sql = await getSql();
+
+    try {
+      const categoryImageMap: Record<string, string> = {
+        headlamps: "/parts/headlamp.jpg",
+        taillamps: "/parts/taillamp.jpg",
+        cornerlamps: "/parts/cornerlamp.jpg",
+        grills: "/parts/grill.jpg",
+        bumpers: "/parts/bumper.jpg",
+        foglights: "/parts/foglight.jpg",
+        lubricants: "/parts/lubricant.jpg",
+        additives: "/parts/additive.jpg",
+        mats: "/parts/mats.jpg",
+        accessories: "/parts/accessory.jpg",
+        jacks: "/parts/jack.jpg",
+      };
+
+      // Fetch all products
+      const products = await sql.query<{ id: number; category_slug: string; image: string }>(
+        "select id, category_slug, image from products"
+      );
+
+      let updatedCount = 0;
+
+      for (const p of products) {
+        const catSlug = (p.category_slug || "").toLowerCase().trim();
+        let targetImage = categoryImageMap[catSlug];
+        if (!targetImage) {
+          if (catSlug.includes("lamp") || catSlug.includes("light")) targetImage = "/parts/headlamp.jpg";
+          else if (catSlug.includes("oil") || catSlug.includes("fluid")) targetImage = "/parts/lubricant.jpg";
+          else if (catSlug.includes("grill")) targetImage = "/parts/grill.jpg";
+          else targetImage = "/parts/headlamp.jpg";
+        }
+
+        // Update product in database
+        await sql.query(
+          "update products set image = $1 where id = $2",
+          [targetImage, p.id]
+        );
+        updatedCount++;
+      }
+
+      await sql.query(
+        `insert into activity_logs (admin_username, action, details, type) values ($1, $2, $3, $4)`,
+        [
+          session.username,
+          "Bulk Photo Auto-Sync",
+          `Auto-assigned clean category photos across ${updatedCount} catalog products and purged base64 bloat.`,
+          "catalog",
+        ]
+      );
+
+      return { success: true, count: updatedCount };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed bulk photo auto-sync";
+      return { success: false, error: msg };
+    }
+  }
+);
+

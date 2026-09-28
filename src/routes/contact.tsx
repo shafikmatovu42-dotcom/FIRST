@@ -33,8 +33,8 @@ function ContactPage() {
         Talk to the counter
       </h1>
       <p className="mt-3 max-w-xl text-muted-foreground">
-        Call, WhatsApp, or walk in. Have the vehicle year and a photo of the part
-        if you can — it saves a return trip.
+        Call, WhatsApp, or walk in. Have the tool name, photo, or specifications
+        if you can — it saves time.
       </p>
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2">
@@ -70,7 +70,7 @@ function ContactPage() {
       <Button asChild size="lg" className="mt-8">
         <a
           href={whatsappUrl(
-            `Hello ${storeName}, I am at the counter in spirit. I need a part.`,
+            `Hello ${storeName}, I need a tool. I will send the photo or details.`,
             storeWhatsapp
           )}
           target="_blank"

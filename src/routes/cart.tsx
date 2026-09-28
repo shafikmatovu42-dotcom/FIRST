@@ -52,7 +52,15 @@ function CartPage() {
                 params={{ slug: item.slug }}
                 className="size-24 shrink-0 overflow-hidden rounded-md bg-elevated"
               >
-                <img src={item.image} alt="" className="size-full object-cover" />
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = "/parts/headlamp.jpg";
+                  }}
+                  className="size-full object-cover"
+                />
               </Link>
               <div className="min-w-0 flex-1">
                 <Link

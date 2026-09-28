@@ -93,15 +93,15 @@ function AdminProductsPage() {
       id: 0,
       name: "",
       slug: "",
-      brand: "OEM",
-      make: "Toyota",
-      fitment: "Universal",
-      category_slug: categories[0]?.slug || "headlamps",
-      price_ugx: 150000,
-      grade: "OEM",
-      stock: 5,
+      brand: "Tool Hub",
+      make: "Universal",
+      fitment: "Standard",
+      category_slug: categories[0]?.slug || "spanners",
+      price_ugx: 75000,
+      grade: "Heavy Duty",
+      stock: 10,
       hot: false,
-      description: "High quality vehicle spare part. Direct fitment and guaranteed durability.",
+      description: "High quality industrial hardware tool. Durable construction and guaranteed performance.",
       image: "/parts/headlamp.jpg",
     });
     setIsAddOpen(true);
@@ -494,30 +494,7 @@ function AdminProductsPage() {
                 </div>
               </div>
 
-              {/* Vehicle Make & Fitment Years */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-semibold uppercase text-zinc-400">Vehicle Make</label>
-                  <input
-                    type="text"
-                    value={formData.make}
-                    onChange={(e) => setFormData({ ...formData, make: e.target.value })}
-                    placeholder="e.g. Toyota, Nissan, Subaru"
-                    className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-2.5 text-sm text-white focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
 
-                <div>
-                  <label className="block text-xs font-semibold uppercase text-zinc-400">Fitment Models / Years</label>
-                  <input
-                    type="text"
-                    value={formData.fitment}
-                    onChange={(e) => setFormData({ ...formData, fitment: e.target.value })}
-                    placeholder="e.g. Premio 2008-2010"
-                    className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-2.5 text-sm text-white focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-              </div>
 
               {/* Price & Stock */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
