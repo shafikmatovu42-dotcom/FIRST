@@ -133,11 +133,14 @@ function AdminProductsPage() {
     if (!file) return;
 
     setUploadingImage(true);
+    showFeedback(null);
     try {
       const url = await uploadProductImage(file);
       setFormData((prev) => ({ ...prev, image: url }));
-    } catch (err) {
-      alert("Failed to upload image.");
+      showFeedback({ type: "success", text: "Product photo uploaded and preview updated!" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to upload image.";
+      showFeedback({ type: "error", text: msg });
     } finally {
       setUploadingImage(false);
     }
