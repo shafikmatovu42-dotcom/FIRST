@@ -1,25 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-/**
- * Storage CDN & Object Storage Helper
- * 
- * Multi-layer Upload Pipeline:
- * 1. Client Canvas Compression (reduces 10MB camera photos to ~250KB in milliseconds)
- * 2. Direct Client-to-Supabase REST Upload (bypasses serverless payload limits & server bottlenecks)
- * 3. Server Function Fallback (`uploadProductImageServer`)
- * 4. Compressed Data-URI Fallback (guarantees user's image is saved even if Supabase is unconfigured)
- */
+const DEFAULT_SUPABASE_URL = "https://laqnlgnnfvtoaktfwija.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxhcW5sZ25uZnZ0b2FrdGZ3aWphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzMzU1NTksImV4cCI6MjEwNTkxMTU1OX0.9bSjku7wZKoW_BvumqDDvqlnPyQUZIMO7diNkS0Ek0U";
 
 interface CompressedImageResult {
   blob: Blob;
   mimeType: string;
   base64Data: string;
-  dataUrl: string;
 }
 
 /**
- * Compresses and resizes image files client-side using HTML5 Canvas
+ * Compresses and resizes image files client-side using HTML5 Canvas before upload
  */
 async function compressImageFile(file: File, maxDimension = 1600, quality = 0.82): Promise<CompressedImageResult> {
   return new Promise((resolve, reject) => {
@@ -29,8 +22,8 @@ async function compressImageFile(file: File, maxDimension = 1600, quality = 0.82
         const dataUrl = reader.result as string;
         const commaIdx = dataUrl.indexOf(",");
         const base64Data = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
-        const blob = new Blob([file], { type: file.type });
-        resolve({ blob, mimeType: file.type || "image/jpeg", base64Data, dataUrl });
+        const blob = new Blob([file], { type: file.type || "image/jpeg" });
+        resolve({ blob, mimeType: file.type || "image/jpeg", base64Data });
       };
       reader.onerror = (e) => reject(e);
       reader.readAsDataURL(file);
@@ -67,24 +60,20 @@ async function compressImageFile(file: File, maxDimension = 1600, quality = 0.82
       ctx.drawImage(img, 0, 0, width, height);
 
       const mimeType = "image/jpeg";
-      const dataUrl = canvas.toDataURL(mimeType, quality);
-      const commaIdx = dataUrl.indexOf(",");
-      const base64Data = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
-
       canvas.toBlob(
         (blob) => {
           if (blob) {
-            resolve({ blob, mimeType, base64Data, dataUrl });
+            const reader = new FileReader();
+            reader.onload = () => {
+              const resStr = reader.result as string;
+              const commaIdx = resStr.indexOf(",");
+              const base64Data = commaIdx >= 0 ? resStr.slice(commaIdx + 1) : resStr;
+              resolve({ blob, mimeType, base64Data });
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
           } else {
-            // Fall back to dataUrl conversion if toBlob is unavailable
-            const byteString = atob(base64Data);
-            const ab = new ArrayBuffer(byteString.length);
-            const ia = new Uint8Array(ab);
-            for (let i = 0; i < byteString.length; i++) {
-              ia[i] = byteString.charCodeAt(i);
-            }
-            const fallbackBlob = new Blob([ab], { type: mimeType });
-            resolve({ blob: fallbackBlob, mimeType, base64Data, dataUrl });
+            reject(new Error("Canvas blob conversion failed"));
           }
         },
         mimeType,
@@ -117,7 +106,7 @@ export const uploadProductImageServer = createServerFn({ method: "POST" })
       process.env.VITE_SUPABASE_URL ||
       process.env.SUPABASE_URL ||
       process.env.SUPERBASE_URL ||
-      ""
+      DEFAULT_SUPABASE_URL
     ).trim();
 
     const apiKey = (
@@ -126,13 +115,8 @@ export const uploadProductImageServer = createServerFn({ method: "POST" })
       process.env.VITE_SUPABASE_ANON_KEY ||
       process.env.SUPABASE_ANON_KEY ||
       process.env.SUPERBASE_PUBLISHABLE_KEY ||
-      ""
+      DEFAULT_SUPABASE_ANON_KEY
     ).trim();
-
-    if (!supabaseUrl || !apiKey) {
-      console.warn("[Storage Server] Missing Supabase credentials in server environment");
-      return { success: false, error: "Supabase credentials missing" };
-    }
 
     try {
       const cleanFileName = `${Date.now()}_${data.fileName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
@@ -153,57 +137,54 @@ export const uploadProductImageServer = createServerFn({ method: "POST" })
 
       if (res.ok) {
         const publicUrl = `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/product-images/${cleanFileName}`;
-        console.log("[Storage Server] Uploaded successfully to CDN:", publicUrl);
+        console.log("[Storage Server] Uploaded successfully to Supabase CDN:", publicUrl);
         return { success: true, url: publicUrl };
       } else {
         const errText = await res.text();
         console.warn("[Storage Server] Supabase Storage error:", res.status, errText);
-        return { success: false, error: errText };
+        return { success: false, error: `Supabase HTTP ${res.status}: ${errText}` };
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Upload failed";
+      const msg = err instanceof Error ? err.message : "Upload exception";
       console.error("[Storage Server] Exception during upload:", msg);
       return { success: false, error: msg };
     }
   });
 
 /**
- * Public function to upload a product image.
- * Uses client compression -> direct client REST upload -> server function -> compressed data URI.
+ * Public function to upload a product image exclusively to the Supabase Storage Bucket.
+ * Never returns raw base64 data URLs.
  */
 export async function uploadProductImage(file: File): Promise<string> {
-  // Step 1: Compress image client-side to ensure fast uploads & minimal payload
+  // Step 1: Compress image client-side to ensure fast upload
   let compressed: CompressedImageResult;
   try {
     compressed = await compressImageFile(file);
   } catch (err) {
-    console.warn("[Storage Client] Canvas compression warning, using raw file reader:", err);
+    console.warn("[Storage Client] Canvas compression error, falling back to raw file:", err);
     compressed = await new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
-        const dataUrl = reader.result as string;
-        const commaIdx = dataUrl.indexOf(",");
-        const base64Data = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+        const resStr = reader.result as string;
+        const commaIdx = resStr.indexOf(",");
+        const base64Data = commaIdx >= 0 ? resStr.slice(commaIdx + 1) : resStr;
         const blob = new Blob([file], { type: file.type || "image/jpeg" });
-        resolve({ blob, mimeType: file.type || "image/jpeg", base64Data, dataUrl });
+        resolve({ blob, mimeType: file.type || "image/jpeg", base64Data });
       };
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   }
 
-  // Step 2: Attempt Direct Client-to-Supabase Storage REST Upload if browser env keys exist
-  try {
-    const clientUrl =
-      typeof import.meta !== "undefined" && import.meta.env
-        ? (import.meta.env.VITE_SUPABASE_URL as string)
-        : "";
-    const clientKey =
-      typeof import.meta !== "undefined" && import.meta.env
-        ? (import.meta.env.VITE_SUPABASE_ANON_KEY as string)
-        : "";
+  // Step 2: Try Direct Client-to-Supabase REST Upload first (fastest, direct to bucket)
+  const clientUrl =
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_SUPABASE_URL) || DEFAULT_SUPABASE_URL;
+  const clientKey =
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_SUPABASE_ANON_KEY) || DEFAULT_SUPABASE_ANON_KEY;
 
-    if (clientUrl && clientKey) {
+  let directError: string | null = null;
+  if (clientUrl && clientKey) {
+    try {
       const cleanFileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
       const targetEndpoint = `${clientUrl.replace(/\/$/, "")}/storage/v1/object/product-images/${cleanFileName}`;
 
@@ -220,15 +201,21 @@ export async function uploadProductImage(file: File): Promise<string> {
 
       if (res.ok) {
         const publicUrl = `${clientUrl.replace(/\/$/, "")}/storage/v1/object/public/product-images/${cleanFileName}`;
-        console.log("[Storage Client] Direct REST upload successful:", publicUrl);
+        console.log("[Storage Client] Direct REST upload to Supabase Bucket successful:", publicUrl);
         return publicUrl;
+      } else {
+        const text = await res.text();
+        directError = `HTTP ${res.status}: ${text}`;
+        console.warn("[Storage Client] Direct REST upload returned error:", directError);
       }
+    } catch (clientErr) {
+      directError = clientErr instanceof Error ? clientErr.message : "Client network error";
+      console.warn("[Storage Client] Direct REST upload failed:", clientErr);
     }
-  } catch (clientErr) {
-    console.warn("[Storage Client] Direct REST upload failed, falling back to server function:", clientErr);
   }
 
-  // Step 3: Attempt Server Function RPC upload
+  // Step 3: Server Function RPC upload fallback
+  let serverError: string | null = null;
   try {
     const serverResult = await uploadProductImageServer({
       data: {
@@ -241,14 +228,13 @@ export async function uploadProductImage(file: File): Promise<string> {
     if (serverResult.success && serverResult.url) {
       return serverResult.url;
     }
-    console.warn("[Storage Client] Server function returned error:", serverResult.error);
+    serverError = serverResult.error || "Server function failed";
   } catch (serverErr) {
-    console.warn("[Storage Client] Server function call failed:", serverErr);
+    serverError = serverErr instanceof Error ? serverErr.message : "Server RPC network error";
   }
 
-  // Step 4: Final Fallback - Return compressed Data URI string (~200KB)
-  // Ensures user image ALWAYS updates without falling back to blank or default stock image!
-  console.log("[Storage Client] Returning compressed Data-URI fallback for selected image.");
-  return compressed.dataUrl;
+  // If both direct client and server bucket uploads fail, throw explicit error
+  throw new Error(`Failed to upload to Supabase bucket. Direct error: [${directError || "N/A"}], Server error: [${serverError || "N/A"}]`);
 }
+
 
