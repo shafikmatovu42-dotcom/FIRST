@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Outlet, Link, useNavigate, useLocation, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Outlet, Link, useNavigate, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   Package,
@@ -34,7 +34,6 @@ function AdminLayout() {
   const { session } = Route.useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
-  const router = useRouter();
   const [user, setUser] = useState<AdminUser | null>(session);
   const [collapsed, setCollapsed] = useState(false);
 

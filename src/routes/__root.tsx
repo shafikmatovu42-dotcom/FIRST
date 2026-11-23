@@ -1,6 +1,7 @@
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { SiteShell } from "@/components/site-shell";
+import { getPublicSiteShellData } from "@/lib/catalog";
 import { SHOP } from "@/lib/shop";
 import appCss from "../styles.css?url";
 
@@ -36,6 +37,8 @@ const jsonLdData = {
 };
 
 export const Route = createRootRoute({
+  staleTime: 5 * 60_000,
+  loader: async () => getPublicSiteShellData(),
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -95,6 +98,8 @@ export const Route = createRootRoute({
 });
 
 function RootDocument() {
+  const siteData = Route.useLoaderData();
+
   return (
     <html lang="en" className="antialiased" suppressHydrationWarning>
       <head>
@@ -102,7 +107,7 @@ function RootDocument() {
       </head>
       <body>
         <AuthProvider>
-          <SiteShell />
+          <SiteShell siteData={siteData} />
         </AuthProvider>
         <Scripts />
       </body>

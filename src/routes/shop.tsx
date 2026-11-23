@@ -1,45 +1,95 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  createFileRoute,
+  Link,
+  useLoaderData,
+  useNavigate,
+} from "@tanstack/react-router";
 import { ProductCard } from "@/components/product-card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { listCategories, listProducts } from "@/lib/catalog";
+import {
+  listProductMakes,
+  queryProducts,
+  type ProductSummary,
+} from "@/lib/catalog";
 import { parseShopSearch, shopSearch, type ShopSearch } from "@/lib/shop-search";
 import { cn } from "@/lib/utils";
 
+const PAGE_SIZE = 12;
+
 export const Route = createFileRoute("/shop")({
   validateSearch: parseShopSearch,
-  loader: async () => {
-    const [products, categories] = await Promise.all([
-      listProducts(),
-      listCategories(),
+  loaderDeps: ({ search }) => ({
+    q: search.q ?? "",
+    cat: search.cat ?? "",
+    make: search.make ?? "",
+  }),
+  loader: async ({ deps }) => {
+    const [pageData, makes] = await Promise.all([
+      queryProducts({
+        data: {
+          q: deps.q || undefined,
+          cat: deps.cat || undefined,
+          make: deps.make || undefined,
+          page: 1,
+          pageSize: PAGE_SIZE,
+        },
+      }),
+      listProductMakes(),
     ]);
-    return { products, categories };
+    return { pageData, makes };
   },
   component: ShopPage,
 });
 
 function ShopPage() {
-  const { products, categories } = Route.useLoaderData();
+  const { pageData, makes } = Route.useLoaderData();
+  const { categories } = useLoaderData({ from: "__root__" });
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const q = (search.q ?? "").trim().toLowerCase();
+
+  const q = search.q ?? "";
   const cat = search.cat ?? "";
   const make = search.make ?? "";
 
-  const makes = [
-    ...new Set(
-      products.map((p) => p.make).filter((m): m is string => Boolean(m)),
-    ),
-  ].sort();
+  const [items, setItems] = useState<ProductSummary[]>(pageData.items);
+  const [page, setPage] = useState(pageData.page);
+  const [hasMore, setHasMore] = useState(pageData.hasMore);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const filtered = products.filter((p) => {
-    if (cat && p.category_slug !== cat) return false;
-    if (make && p.make !== make) return false;
-    if (!q) return true;
-    const hay =
-      `${p.name} ${p.brand} ${p.make ?? ""} ${p.fitment ?? ""} ${p.grade}`.toLowerCase();
-    return hay.includes(q);
-  });
+  // Sync incremental state whenever filters/loader data change
+  useEffect(() => {
+    setItems(pageData.items);
+    setPage(pageData.page);
+    setHasMore(pageData.hasMore);
+  }, [pageData]);
+
+  async function handleLoadMore() {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const next = await queryProducts({
+        data: {
+          q: q || undefined,
+          cat: cat || undefined,
+          make: make || undefined,
+          page: nextPage,
+          pageSize: PAGE_SIZE,
+        },
+      });
+      setItems((prev) => {
+        const seen = new Set(prev.map((item) => item.id));
+        const fresh = next.items.filter((item) => !seen.has(item.id));
+        return [...prev, ...fresh];
+      });
+      setPage(next.page);
+      setHasMore(next.hasMore);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
@@ -50,7 +100,7 @@ function ShopPage() {
         All parts
       </h1>
       <p className="mt-2 text-sm text-muted-foreground tabular-nums">
-        {filtered.length} of {products.length} listed
+        Showing {items.length} of {pageData.total} listed
       </p>
 
       <form
@@ -66,6 +116,7 @@ function ShopPage() {
         }}
       >
         <Input
+          key={search.q ?? ""}
           name="q"
           defaultValue={search.q ?? ""}
           placeholder="Search make, lamp, grill…"
@@ -88,31 +139,51 @@ function ShopPage() {
         ))}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        <FilterChip active={!make} search={shopSearch({ q: search.q, cat })}>
-          Any make
-        </FilterChip>
-        {makes.map((m) => (
-          <FilterChip
-            key={m}
-            active={make === m}
-            search={shopSearch({ q: search.q, cat, make: m })}
-          >
-            {m}
+      {makes.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <FilterChip active={!make} search={shopSearch({ q: search.q, cat })}>
+            Any make
           </FilterChip>
-        ))}
-      </div>
+          {makes.map((m) => (
+            <FilterChip
+              key={m}
+              active={make === m}
+              search={shopSearch({ q: search.q, cat, make: m })}
+            >
+              {m}
+            </FilterChip>
+          ))}
+        </div>
+      )}
 
-      {filtered.length === 0 ? (
+      {items.length === 0 ? (
         <p className="mt-12 text-sm text-muted-foreground">
           No parts match those filters. Clear a chip or try another search.
         </p>
       ) : (
-        <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        <>
+          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((p, idx) => (
+              <ProductCard key={p.id} product={p} priority={idx < 3} />
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="mt-10 flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                disabled={loadingMore}
+                onClick={handleLoadMore}
+              >
+                {loadingMore
+                  ? "Loading more…"
+                  : `Load more (${pageData.total - items.length} remaining)`}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

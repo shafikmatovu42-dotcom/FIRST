@@ -2,12 +2,8 @@ import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   Wrench,
-  Phone,
-  Mail,
-  MapPin,
   Database,
   CheckCircle2,
-  ShieldCheck,
   Save,
   Globe,
   Upload,
@@ -22,12 +18,12 @@ import {
   Edit2,
   Send,
 } from "lucide-react";
-import { getAdminSession, listStaffUsers, createStaffUser, deleteStaffUser, AdminUser } from "@/lib/admin-auth";
-import { listCategories, Category } from "@/lib/catalog";
+import { getAdminSession, listStaffUsers, createStaffUser, deleteStaffUser } from "@/lib/admin-auth";
+import { listCategories } from "@/lib/catalog";
 import { createCategory, deleteCategory, getShopSettings, updateShopSettings } from "@/lib/admin-catalog";
 import { uploadProductImage } from "@/lib/storage-store";
 import { SHOP } from "@/lib/shop";
-import { useNotificationStore, requestPushPermission, NotificationItem } from "@/lib/notification-store";
+import { useNotificationStore, requestPushPermission } from "@/lib/notification-store";
 
 export const Route = createFileRoute("/admin/settings")({
   loader: async () => {
@@ -160,7 +156,7 @@ function AdminSettingsPage() {
 
     setUploadingLogo(true);
     try {
-      const url = await uploadProductImage(file);
+      const url = await uploadProductImage(file, { maxDimension: 512, quality: 0.85 });
       setShopInfo((prev) => ({ ...prev, logo: url }));
       showFeedback({ type: "success", text: "App icon uploaded to Supabase CDN!" });
     } catch {
@@ -177,7 +173,7 @@ function AdminSettingsPage() {
 
     setUploadingHero(true);
     try {
-      const url = await uploadProductImage(file);
+      const url = await uploadProductImage(file, { maxDimension: 1400, quality: 0.8 });
       const key = `heroImage${index}` as keyof typeof shopInfo;
       setShopInfo((prev) => ({ ...prev, [key]: url }));
       showFeedback({ type: "success", text: `Hero Slideshow Image #${index} uploaded to Supabase CDN!` });
@@ -537,7 +533,13 @@ function AdminSettingsPage() {
 
                       <div className="h-24 w-full overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 flex items-center justify-center">
                         {currentVal ? (
-                          <img src={currentVal} alt={`Slide #${num}`} className="size-full object-cover" />
+                          <img
+                            src={currentVal}
+                            alt={`Slide #${num}`}
+                            loading="lazy"
+                            decoding="async"
+                            className="size-full object-cover"
+                          />
                         ) : (
                           <Globe className="size-6 text-zinc-600" />
                         )}

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { History, User, Clock, ShieldAlert, Package, ShoppingBag, Lock, Filter } from "lucide-react";
-import { listActivityLogs, ActivityLog } from "@/lib/admin-activity";
+import { History, User, Clock, Package, ShoppingBag, Lock } from "lucide-react";
+import { listActivityLogs } from "@/lib/admin-activity";
 
 export const Route = createFileRoute("/admin/activity")({
   loader: async () => {

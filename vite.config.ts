@@ -58,6 +58,12 @@ export default defineConfig(({ command, isPreview }) => ({
       ? [
           nitro({
             preset: process.env.VERCEL ? "vercel" : "node-server",
+            rollupConfig: {
+              external: ["@electric-sql/pglite"],
+            },
+            traceDeps: process.env.VERCEL
+              ? ["!@electric-sql/pglite"]
+              : ["@electric-sql/pglite*"],
           }),
         ]
       : []),

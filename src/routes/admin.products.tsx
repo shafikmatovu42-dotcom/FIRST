@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import {
   Plus,
@@ -10,34 +10,54 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
-  Package,
   Layers,
-  Image as ImageIcon,
 } from "lucide-react";
-import { listProducts, listCategories, Product, Category } from "@/lib/catalog";
-import { createProduct, updateProduct, deleteProduct, toggleHotProduct } from "@/lib/admin-catalog";
+import { SmartImage } from "@/components/smart-image";
+import {
+  getProductById,
+  listCategories,
+  queryProducts,
+  type ProductSummary,
+} from "@/lib/catalog";
+import {
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  toggleHotProduct,
+} from "@/lib/admin-catalog";
 import { uploadProductImage } from "@/lib/storage-store";
 import { formatUgx } from "@/lib/format";
 
+const ADMIN_PAGE_SIZE = 20;
+
 export const Route = createFileRoute("/admin/products")({
   loader: async () => {
-    const [products, categories] = await Promise.all([listProducts(), listCategories()]);
-    return { products, categories };
+    const [pageData, categories] = await Promise.all([
+      queryProducts({ data: { page: 1, pageSize: ADMIN_PAGE_SIZE } }),
+      listCategories(),
+    ]);
+    return { pageData, categories };
   },
   component: AdminProductsPage,
 });
 
 function AdminProductsPage() {
   const router = useRouter();
-  const { products, categories } = Route.useLoaderData();
+  const { pageData, categories } = Route.useLoaderData();
 
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [products, setProducts] = useState<ProductSummary[]>(pageData.items);
+  const [total, setTotal] = useState(pageData.total);
+  const [page, setPage] = useState(pageData.page);
+  const [hasMore, setHasMore] = useState(pageData.hasMore);
+  const [loadingList, setLoadingList] = useState(false);
 
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editProductItem, setEditProductItem] = useState<Product | null>(null);
-  const [deleteProductItem, setDeleteProductItem] = useState<Product | null>(null);
+  const [editProductItem, setEditProductItem] = useState<ProductSummary | null>(null);
+  const [deleteProductItem, setDeleteProductItem] = useState<ProductSummary | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState(false);
 
   // Form fields
   const [formData, setFormData] = useState({
@@ -60,17 +80,55 @@ function AdminProductsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Filter products
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.brand.toLowerCase().includes(search.toLowerCase()) ||
-      (p.make && p.make.toLowerCase().includes(search.toLowerCase())) ||
-      (p.fitment && p.fitment.toLowerCase().includes(search.toLowerCase()));
+  useEffect(() => {
+    setProducts(pageData.items);
+    setTotal(pageData.total);
+    setPage(pageData.page);
+    setHasMore(pageData.hasMore);
+  }, [pageData]);
 
-    const matchesCat = selectedCategory === "all" || p.category_slug === selectedCategory;
-    return matchesSearch && matchesCat;
-  });
+  // Server-side debounced filter/search so we never load the whole catalog at once
+  useEffect(() => {
+    const isDefault = search.trim() === "" && selectedCategory === "all";
+    const timer = setTimeout(() => {
+      if (isDefault && page === 1 && products === pageData.items) return;
+      void fetchPage(1, false, search, selectedCategory);
+    }, 250);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, selectedCategory]);
+
+  async function fetchPage(
+    targetPage: number,
+    append: boolean,
+    qVal = search,
+    catVal = selectedCategory,
+  ) {
+    setLoadingList(true);
+    try {
+      const res = await queryProducts({
+        data: {
+          q: qVal.trim() || undefined,
+          cat: catVal !== "all" ? catVal : undefined,
+          page: targetPage,
+          pageSize: ADMIN_PAGE_SIZE,
+        },
+      });
+      setTotal(res.total);
+      setPage(res.page);
+      setHasMore(res.hasMore);
+      if (append) {
+        setProducts((prev) => {
+          const seen = new Set(prev.map((p) => p.id));
+          return [...prev, ...res.items.filter((p) => !seen.has(p.id))];
+        });
+      } else {
+        setProducts(res.items);
+      }
+    } finally {
+      setLoadingList(false);
+    }
+  }
 
   const autoSlug = (text: string) => {
     return text
@@ -108,7 +166,8 @@ function AdminProductsPage() {
     showFeedback(null);
   };
 
-  const handleOpenEdit = (p: Product) => {
+  const handleOpenEdit = async (p: ProductSummary) => {
+    setEditProductItem(p);
     setFormData({
       id: p.id,
       name: p.name,
@@ -121,11 +180,21 @@ function AdminProductsPage() {
       grade: p.grade,
       stock: p.stock,
       hot: p.hot,
-      description: p.description,
+      description: "",
       image: p.image,
     });
-    setEditProductItem(p);
     showFeedback(null);
+    setLoadingEdit(true);
+    try {
+      const full = await getProductById({ data: { id: p.id } });
+      if (full) {
+        setFormData((prev) =>
+          prev.id === full.id ? { ...prev, description: full.description } : prev,
+        );
+      }
+    } finally {
+      setLoadingEdit(false);
+    }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,7 +204,7 @@ function AdminProductsPage() {
     setUploadingImage(true);
     showFeedback(null);
     try {
-      const url = await uploadProductImage(file);
+      const url = await uploadProductImage(file, { maxDimension: 1000, quality: 0.78 });
       setFormData((prev) => ({ ...prev, image: url }));
       showFeedback({ type: "success", text: "Product photo uploaded and preview updated!" });
     } catch (err: unknown) {
@@ -158,10 +227,12 @@ function AdminProductsPage() {
       }
 
       const generatedSlug = autoSlug(formData.slug) || autoSlug(formData.name);
-      const slug = generatedSlug.length >= 2 ? generatedSlug : `part-${Date.now().toString().slice(-6)}`;
+      const slug =
+        generatedSlug.length >= 2
+          ? generatedSlug
+          : `part-${Date.now().toString().slice(-6)}`;
 
       if (editProductItem) {
-        // Update existing
         const res = await updateProduct({
           data: {
             id: editProductItem.id,
@@ -183,12 +254,12 @@ function AdminProductsPage() {
         if (res?.success) {
           showFeedback({ type: "success", text: `Product '${formData.name}' updated successfully.` });
           setEditProductItem(null);
-          router.invalidate();
+          await fetchPage(1, false);
+          void router.invalidate();
         } else {
           showFeedback({ type: "error", text: res?.error || "Failed to update product." });
         }
       } else {
-        // Create new
         const res = await createProduct({
           data: {
             name: formData.name,
@@ -209,7 +280,8 @@ function AdminProductsPage() {
         if (res?.success) {
           showFeedback({ type: "success", text: `Product '${formData.name}' added to catalog!` });
           setIsAddOpen(false);
-          router.invalidate();
+          await fetchPage(1, false);
+          void router.invalidate();
         } else {
           showFeedback({ type: "error", text: res?.error || "Failed to create product." });
         }
@@ -234,16 +306,24 @@ function AdminProductsPage() {
     if (res.success) {
       showFeedback({ type: "success", text: `Deleted '${deleteProductItem.name}'` });
       setDeleteProductItem(null);
-      router.invalidate();
+      await fetchPage(1, false);
+      void router.invalidate();
     } else {
       showFeedback({ type: "error", text: res.error || "Failed to delete item" });
     }
     setSubmitting(false);
   };
 
-  const handleToggleHot = async (p: Product) => {
-    await toggleHotProduct({ data: { id: p.id, hot: !p.hot } });
-    router.invalidate();
+  const handleToggleHot = async (p: ProductSummary) => {
+    const res = await toggleHotProduct({ data: { id: p.id, hot: !p.hot } });
+    if (res.success) {
+      setProducts((prev) =>
+        prev.map((item) => (item.id === p.id ? { ...item, hot: !p.hot } : item)),
+      );
+      void router.invalidate();
+    } else {
+      showFeedback({ type: "error", text: res.error || "Failed to update featured status" });
+    }
   };
 
   return (
@@ -252,7 +332,9 @@ function AdminProductsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-white">Product Catalog Management</h1>
-          <p className="mt-1 text-sm text-zinc-400">Add, edit, upload photos, and manage stock for all spare parts.</p>
+          <p className="mt-1 text-sm text-zinc-400">
+            Showing {products.length} of {total} products. Add, edit, upload photos, and manage stock.
+          </p>
         </div>
         <button
           onClick={handleOpenAdd}
@@ -272,7 +354,11 @@ function AdminProductsPage() {
           }`}
         >
           <div className="flex items-center gap-3">
-            {feedback.type === "success" ? <CheckCircle2 className="size-5 shrink-0" /> : <AlertCircle className="size-5 shrink-0" />}
+            {feedback.type === "success" ? (
+              <CheckCircle2 className="size-5 shrink-0" />
+            ) : (
+              <AlertCircle className="size-5 shrink-0" />
+            )}
             <span>{feedback.text}</span>
           </div>
           <button onClick={() => setFeedback(null)} className="rounded-lg p-1 opacity-70 hover:opacity-100">
@@ -301,7 +387,7 @@ function AdminProductsPage() {
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-white focus:border-amber-500 focus:outline-none"
           >
-            <option value="all">All Categories ({products.length})</option>
+            <option value="all">All Categories ({total})</option>
             {categories.map((c) => (
               <option key={c.slug} value={c.slug}>
                 {c.name}
@@ -325,27 +411,27 @@ function AdminProductsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/60">
-            {filteredProducts.length === 0 ? (
+            {products.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-6 py-12 text-center text-zinc-500">
-                  No products matched your filter. Try adjusting your search query.
+                  {loadingList
+                    ? "Loading products..."
+                    : "No products matched your filter. Try adjusting your search query."}
                 </td>
               </tr>
             ) : (
-              filteredProducts.map((p) => (
+              products.map((p) => (
                 <tr key={p.id} className="transition hover:bg-zinc-800/40">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="size-12 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shrink-0">
-                        <img
-                          src={p.image}
-                          alt={p.name}
-                          className="size-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = "/parts/headlamp.jpg";
-                          }}
-                        />
-                      </div>
+                      <SmartImage
+                        src={p.image}
+                        alt={p.name}
+                        width={48}
+                        height={48}
+                        wrapperClassName="size-12 rounded-xl border border-zinc-800 bg-zinc-950 shrink-0"
+                        className="size-full object-cover"
+                      />
                       <div>
                         <p className="font-semibold text-white">{p.name}</p>
                         <p className="text-xs text-zinc-400">
@@ -390,7 +476,7 @@ function AdminProductsPage() {
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => handleOpenEdit(p)}
+                        onClick={() => void handleOpenEdit(p)}
                         className="flex size-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-amber-500 hover:text-zinc-950"
                         title="Edit Product"
                       >
@@ -411,6 +497,21 @@ function AdminProductsPage() {
           </tbody>
         </table>
       </div>
+
+      {hasMore && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            disabled={loadingList}
+            onClick={() => void fetchPage(page + 1, true)}
+            className="rounded-xl border border-zinc-700 bg-zinc-900 px-5 py-2.5 text-xs font-semibold text-zinc-200 hover:border-amber-500 hover:text-white disabled:opacity-50"
+          >
+            {loadingList
+              ? "Loading more..."
+              : `Load more products (${total - products.length} remaining)`}
+          </button>
+        </div>
+      )}
 
       {/* Add / Edit Product Modal */}
       {(isAddOpen || editProductItem) && (
@@ -493,11 +594,10 @@ function AdminProductsPage() {
                     <option value="OEM">OEM</option>
                     <option value="Genuine">Genuine</option>
                     <option value="Aftermarket">Aftermarket</option>
+                    <option value="Heavy Duty">Heavy Duty</option>
                   </select>
                 </div>
               </div>
-
-
 
               {/* Price & Stock */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -531,7 +631,16 @@ function AdminProductsPage() {
                 <label className="block text-xs font-semibold uppercase text-zinc-400">Product Image (Supabase CDN Ready)</label>
                 <div className="mt-2 flex items-center gap-4">
                   <div className="size-20 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shrink-0">
-                    <img src={formData.image} alt="Preview" className="size-full object-cover" />
+                    <img
+                      src={formData.image}
+                      alt="Preview"
+                      decoding="async"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = "/parts/headlamp.jpg";
+                      }}
+                      className="size-full object-cover"
+                    />
                   </div>
 
                   <div className="flex-1 space-y-2">
@@ -553,13 +662,16 @@ function AdminProductsPage() {
 
               {/* Description */}
               <div>
-                <label className="block text-xs font-semibold uppercase text-zinc-400">Description</label>
+                <label className="block text-xs font-semibold uppercase text-zinc-400">
+                  Description {loadingEdit ? "(loading...)" : ""}
+                </label>
                 <textarea
                   rows={3}
                   required
+                  disabled={loadingEdit}
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-2.5 text-sm text-white focus:border-amber-500 focus:outline-none"
+                  className="mt-1 w-full rounded-xl border border-zinc-700 bg-zinc-950 p-2.5 text-sm text-white focus:border-amber-500 focus:outline-none disabled:opacity-60"
                 />
               </div>
 
@@ -573,7 +685,7 @@ function AdminProductsPage() {
                   className="size-4 rounded border-zinc-700 bg-zinc-950 text-amber-500 focus:ring-amber-500"
                 />
                 <label htmlFor="hotCheckbox" className="text-xs font-semibold text-zinc-200">
-                  Feature this product on homepage ("Hot / Popular")
+                  Feature this product on homepage (&quot;Hot / Popular&quot;)
                 </label>
               </div>
 
@@ -585,7 +697,11 @@ function AdminProductsPage() {
                       : "border-red-500/30 bg-red-500/10 text-red-400"
                   }`}
                 >
-                  {feedback.type === "success" ? <CheckCircle2 className="size-4 shrink-0" /> : <AlertCircle className="size-4 shrink-0" />}
+                  {feedback.type === "success" ? (
+                    <CheckCircle2 className="size-4 shrink-0" />
+                  ) : (
+                    <AlertCircle className="size-4 shrink-0" />
+                  )}
                   <span>{feedback.text}</span>
                 </div>
               )}
@@ -604,7 +720,7 @@ function AdminProductsPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || loadingEdit}
                   className="rounded-xl bg-amber-500 px-5 py-2.5 text-xs font-bold text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
                 >
                   {submitting ? "Saving..." : editProductItem ? "Update Product" : "Save & Publish"}

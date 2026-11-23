@@ -1,8 +1,47 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getSql } from "@/lib/db";
-import { Product, Category } from "@/lib/catalog";
+import type { Product } from "@/lib/catalog";
 import { getAdminSession } from "@/lib/admin-auth";
+
+export type LowStockItem = {
+  id: number;
+  name: string;
+  brand: string;
+  category_slug: string;
+  stock: number;
+};
+
+export type DashboardOrderSummary = {
+  id: number;
+  order_ref: string;
+  customer_name: string;
+  customer_phone: string;
+  delivery_location: string;
+  total_ugx: number;
+  status: string;
+  created_at: string;
+};
+
+export type DashboardLogSummary = {
+  id: number;
+  admin_username: string;
+  action: string;
+  details: string;
+  type: string;
+  created_at: string;
+};
+
+export type AdminDashboardSummary = {
+  totalProducts: number;
+  lowStockCount: number;
+  lowStockProducts: LowStockItem[];
+  totalOrders: number;
+  pendingOrdersCount: number;
+  estimatedRevenue: number;
+  recentOrders: DashboardOrderSummary[];
+  recentLogs: DashboardLogSummary[];
+};
 
 const ProductSchema = z.object({
   name: z.string().min(2, "Product name is required"),
@@ -19,20 +58,80 @@ const ProductSchema = z.object({
   image: z.string().min(1, "Image is required"),
 });
 
+/**
+ * Lightweight dashboard summary — fetches SQL aggregates + top slices only.
+ * Never loads product images, descriptions, or full order JSON payloads.
+ */
+export const getAdminDashboardSummary = createServerFn({ method: "GET" }).handler(
+  async (): Promise<AdminDashboardSummary> => {
+    const session = await getAdminSession();
+    if (!session) {
+      return {
+        totalProducts: 0,
+        lowStockCount: 0,
+        lowStockProducts: [],
+        totalOrders: 0,
+        pendingOrdersCount: 0,
+        estimatedRevenue: 0,
+        recentOrders: [],
+        recentLogs: [],
+      };
+    }
+
+    const sql = await getSql();
+    const [prodStats, lowStockProducts, orderStats, recentOrders, recentLogs] =
+      await Promise.all([
+        sql.query<{ total: number; low_stock: number }>(
+          `select count(*) as total,
+                  count(*) filter (where stock <= 3) as low_stock
+           from products`,
+        ),
+        sql.query<LowStockItem>(
+          `select id, name, brand, category_slug, stock
+           from products
+           where stock <= 3
+           order by stock asc, name asc
+           limit 6`,
+        ),
+        sql.query<{ total: number; pending: number; revenue: number }>(
+          `select count(*) as total,
+                  count(*) filter (where status = 'Pending') as pending,
+                  coalesce(sum(total_ugx) filter (where status <> 'Cancelled'), 0) as revenue
+           from orders`,
+        ),
+        sql.query<DashboardOrderSummary>(
+          `select id, order_ref, customer_name, customer_phone, delivery_location, total_ugx, status, created_at
+           from orders
+           order by created_at desc
+           limit 5`,
+        ),
+        sql.query<DashboardLogSummary>(
+          `select id, admin_username, action, details, type, created_at
+           from activity_logs
+           order by created_at desc
+           limit 4`,
+        ),
+      ]);
+
+    return {
+      totalProducts: Number(prodStats[0]?.total ?? 0),
+      lowStockCount: Number(prodStats[0]?.low_stock ?? 0),
+      lowStockProducts,
+      totalOrders: Number(orderStats[0]?.total ?? 0),
+      pendingOrdersCount: Number(orderStats[0]?.pending ?? 0),
+      estimatedRevenue: Number(orderStats[0]?.revenue ?? 0),
+      recentOrders,
+      recentLogs,
+    };
+  },
+);
+
 export const createProduct = createServerFn({ method: "POST" })
   .validator(ProductSchema)
   .handler(async ({ data }) => {
-    let session = await getAdminSession();
+    const session = await getAdminSession();
     if (!session) {
-      // Auto-fallback for owner portal
-      session = {
-        id: 1,
-        username: "admin",
-        email: "owner@toolhub.ug",
-        name: "Shop Owner",
-        role: "owner",
-        created_at: new Date().toISOString(),
-      };
+      return { success: false, error: "Unauthorized. Please log in." };
     }
 
     const sql = await getSql();
@@ -40,13 +139,18 @@ export const createProduct = createServerFn({ method: "POST" })
     try {
       // Ensure PostgreSQL ID sequence is in sync with max(id)
       try {
-        await sql.query(`SELECT setval(pg_get_serial_sequence('products', 'id'), COALESCE((SELECT MAX(id) FROM products), 1))`);
+        await sql.query(
+          `SELECT setval(pg_get_serial_sequence('products', 'id'), COALESCE((SELECT MAX(id) FROM products), 1))`,
+        );
       } catch {
         // Ignore sequence sync if not applicable
       }
 
       // Ensure slug uniqueness by appending suffix if already taken
-      let finalSlug = (data.slug && data.slug.trim().length >= 2) ? data.slug.trim() : `part-${Date.now()}`;
+      let finalSlug =
+        data.slug && data.slug.trim().length >= 2
+          ? data.slug.trim()
+          : `part-${Date.now()}`;
       const existing = await sql.query<{ id: number }>(
         `select id from products where slug = $1 limit 1`,
         [finalSlug],
@@ -75,7 +179,6 @@ export const createProduct = createServerFn({ method: "POST" })
         ],
       );
 
-      // Write activity log
       await sql.query(
         `insert into activity_logs (admin_username, action, details, type) values ($1, $2, $3, $4)`,
         [
@@ -100,23 +203,16 @@ export const updateProduct = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data }) => {
-    let session = await getAdminSession();
+    const session = await getAdminSession();
     if (!session) {
-      session = {
-        id: 1,
-        username: "admin",
-        email: "owner@toolhub.ug",
-        name: "Shop Owner",
-        role: "owner",
-        created_at: new Date().toISOString(),
-      };
+      return { success: false, error: "Unauthorized. Please log in." };
     }
 
     const sql = await getSql();
 
     try {
       const rows = await sql.query<Product>(
-        `update products set 
+        `update products set
           slug = $1,
           name = $2,
           brand = $3,
@@ -152,7 +248,6 @@ export const updateProduct = createServerFn({ method: "POST" })
         return { success: false, error: "Product not found." };
       }
 
-      // Write activity log
       await sql.query(
         `insert into activity_logs (admin_username, action, details, type) values ($1, $2, $3, $4)`,
         [
@@ -173,16 +268,9 @@ export const updateProduct = createServerFn({ method: "POST" })
 export const deleteProduct = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.number().positive(), name: z.string() }))
   .handler(async ({ data }) => {
-    let session = await getAdminSession();
+    const session = await getAdminSession();
     if (!session) {
-      session = {
-        id: 1,
-        username: "admin",
-        email: "owner@toolhub.ug",
-        name: "Shop Owner",
-        role: "owner",
-        created_at: new Date().toISOString(),
-      };
+      return { success: false, error: "Unauthorized. Please log in." };
     }
 
     const sql = await getSql();
@@ -190,7 +278,6 @@ export const deleteProduct = createServerFn({ method: "POST" })
     try {
       await sql.query(`delete from products where id = $1`, [data.id]);
 
-      // Write activity log
       await sql.query(
         `insert into activity_logs (admin_username, action, details, type) values ($1, $2, $3, $4)`,
         [
@@ -211,16 +298,9 @@ export const deleteProduct = createServerFn({ method: "POST" })
 export const toggleHotProduct = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.number().positive(), hot: z.boolean() }))
   .handler(async ({ data }) => {
-    let session = await getAdminSession();
+    const session = await getAdminSession();
     if (!session) {
-      session = {
-        id: 1,
-        username: "admin",
-        email: "owner@toolhub.ug",
-        name: "Shop Owner",
-        role: "owner",
-        created_at: new Date().toISOString(),
-      };
+      return { success: false, error: "Unauthorized. Please log in." };
     }
 
     const sql = await getSql();
@@ -246,7 +326,7 @@ export const createCategory = createServerFn({ method: "POST" })
       slug: z.string().optional(),
       tagline: z.string().min(2, "Tagline is required"),
       sort_order: z.number().default(0),
-    })
+    }),
   )
   .handler(async ({ data }) => {
     const session = await getAdminSession();
@@ -255,22 +335,33 @@ export const createCategory = createServerFn({ method: "POST" })
     }
 
     const sql = await getSql();
-    const slug = data.slug && data.slug.trim() ? data.slug.trim() : data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const slug =
+      data.slug && data.slug.trim()
+        ? data.slug.trim()
+        : data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
     try {
-      const existing = await sql.query<{ slug: string }>("select slug from categories where slug = $1 limit 1", [slug]);
+      const existing = await sql.query<{ slug: string }>(
+        "select slug from categories where slug = $1 limit 1",
+        [slug],
+      );
       if (existing.length > 0) {
         return { success: false, error: `Category '${slug}' already exists.` };
       }
 
       await sql.query(
         `insert into categories (slug, name, tagline, sort_order) values ($1, $2, $3, $4)`,
-        [slug, data.name, data.tagline, data.sort_order]
+        [slug, data.name, data.tagline, data.sort_order],
       );
 
       await sql.query(
         `insert into activity_logs (admin_username, action, details, type) values ($1, $2, $3, $4)`,
-        [session.username, "Created Category", `Added new category '${data.name}' (${slug}).`, "catalog"]
+        [
+          session.username,
+          "Created Category",
+          `Added new category '${data.name}' (${slug}).`,
+          "catalog",
+        ],
       );
 
       return { success: true };
@@ -290,20 +381,29 @@ export const deleteCategory = createServerFn({ method: "POST" })
 
     const sql = await getSql();
     try {
-      // Reassign products in this category to 'accessories' or check count
-      const prods = await sql.query<{ count: number }>("select count(*) as count from products where category_slug = $1", [data.slug]);
+      const prods = await sql.query<{ count: number }>(
+        "select count(*) as count from products where category_slug = $1",
+        [data.slug],
+      );
       const count = Number(prods[0]?.count ?? 0);
 
       if (count > 0) {
-        // Re-assign to accessories
-        await sql.query("update products set category_slug = 'accessories' where category_slug = $1", [data.slug]);
+        await sql.query(
+          "update products set category_slug = 'accessories' where category_slug = $1",
+          [data.slug],
+        );
       }
 
       await sql.query("delete from categories where slug = $1", [data.slug]);
 
       await sql.query(
         `insert into activity_logs (admin_username, action, details, type) values ($1, $2, $3, $4)`,
-        [session.username, "Deleted Category", `Removed category '${data.slug}' (reassigned ${count} products).`, "catalog"]
+        [
+          session.username,
+          "Deleted Category",
+          `Removed category '${data.slug}' (reassigned ${count} products).`,
+          "catalog",
+        ],
       );
 
       return { success: true };
@@ -317,7 +417,9 @@ export const getShopSettings = createServerFn({ method: "GET" }).handler(
   async (): Promise<Record<string, string>> => {
     try {
       const sql = await getSql();
-      const rows = await sql.query<{ key: string; value: string }>("select key, value from shop_settings");
+      const rows = await sql.query<{ key: string; value: string }>(
+        "select key, value from shop_settings",
+      );
       const settings: Record<string, string> = {};
       for (const r of rows) {
         settings[r.key] = r.value;
@@ -326,7 +428,7 @@ export const getShopSettings = createServerFn({ method: "GET" }).handler(
     } catch {
       return {};
     }
-  }
+  },
 );
 
 export const updateShopSettings = createServerFn({ method: "POST" })
@@ -334,7 +436,10 @@ export const updateShopSettings = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const session = await getAdminSession();
     if (!session || session.role !== "owner") {
-      return { success: false, error: "Unauthorized. Only shop owners can edit store settings." };
+      return {
+        success: false,
+        error: "Unauthorized. Only shop owners can edit store settings.",
+      };
     }
 
     const sql = await getSql();
@@ -343,13 +448,18 @@ export const updateShopSettings = createServerFn({ method: "POST" })
         await sql.query(
           `insert into shop_settings (key, value, updated_at) values ($1, $2, now())
            on conflict (key) do update set value = excluded.value, updated_at = now()`,
-          [key, val]
+          [key, val],
         );
       }
 
       await sql.query(
         `insert into activity_logs (admin_username, action, details, type) values ($1, $2, $3, $4)`,
-        [session.username, "Settings Updated", `Updated shop profile details and store configuration.`, "settings"]
+        [
+          session.username,
+          "Settings Updated",
+          `Updated shop profile details and store configuration.`,
+          "settings",
+        ],
       );
 
       return { success: true };
@@ -383,9 +493,8 @@ export const bulkAutoAssignPhotos = createServerFn({ method: "POST" }).handler(
         jacks: "/parts/jack.jpg",
       };
 
-      // Fetch all products
-      const products = await sql.query<{ id: number; category_slug: string; image: string }>(
-        "select id, category_slug, image from products"
+      const products = await sql.query<{ id: number; category_slug: string }>(
+        "select id, category_slug from products",
       );
 
       let updatedCount = 0;
@@ -394,17 +503,18 @@ export const bulkAutoAssignPhotos = createServerFn({ method: "POST" }).handler(
         const catSlug = (p.category_slug || "").toLowerCase().trim();
         let targetImage = categoryImageMap[catSlug];
         if (!targetImage) {
-          if (catSlug.includes("lamp") || catSlug.includes("light")) targetImage = "/parts/headlamp.jpg";
-          else if (catSlug.includes("oil") || catSlug.includes("fluid")) targetImage = "/parts/lubricant.jpg";
+          if (catSlug.includes("lamp") || catSlug.includes("light"))
+            targetImage = "/parts/headlamp.jpg";
+          else if (catSlug.includes("oil") || catSlug.includes("fluid"))
+            targetImage = "/parts/lubricant.jpg";
           else if (catSlug.includes("grill")) targetImage = "/parts/grill.jpg";
           else targetImage = "/parts/headlamp.jpg";
         }
 
-        // Update product in database
-        await sql.query(
-          "update products set image = $1 where id = $2",
-          [targetImage, p.id]
-        );
+        await sql.query("update products set image = $1 where id = $2", [
+          targetImage,
+          p.id,
+        ]);
         updatedCount++;
       }
 
@@ -415,7 +525,7 @@ export const bulkAutoAssignPhotos = createServerFn({ method: "POST" }).handler(
           "Bulk Photo Auto-Sync",
           `Auto-assigned clean category photos across ${updatedCount} catalog products and purged base64 bloat.`,
           "catalog",
-        ]
+        ],
       );
 
       return { success: true, count: updatedCount };
@@ -423,6 +533,5 @@ export const bulkAutoAssignPhotos = createServerFn({ method: "POST" }).handler(
       const msg = err instanceof Error ? err.message : "Failed bulk photo auto-sync";
       return { success: false, error: msg };
     }
-  }
+  },
 );
-

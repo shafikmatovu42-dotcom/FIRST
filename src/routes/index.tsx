@@ -1,124 +1,203 @@
-import { useState, useEffect } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { createFileRoute, Link, useLoaderData } from "@tanstack/react-router";
 import { ArrowRight, MapPin, Phone, Shield, Truck } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { Button } from "@/components/ui/button";
-import { listCategories, listHotProducts, getPublicShopSettings } from "@/lib/catalog";
+import { getHeroSettings, listHotProducts } from "@/lib/catalog";
 import { SHOP, whatsappUrl } from "@/lib/shop";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
-    const [categories, hot, dbSettings] = await Promise.all([
-      listCategories(),
+    const [hot, heroSettings] = await Promise.all([
       listHotProducts(),
-      getPublicShopSettings(),
+      getHeroSettings(),
     ]);
-    return { categories, hot, dbSettings };
+    return { hot, heroSettings };
   },
   component: Home,
 });
 
-function Home() {
-  const { categories, hot, dbSettings } = Route.useLoaderData();
-
-  const heroImages = [
-    dbSettings.hero_image_1 || dbSettings.hero_image || "/parts/workshop.jpg",
-    dbSettings.hero_image_2 || "/parts/headlamp.jpg",
-    dbSettings.hero_image_3 || "/parts/grill.jpg",
-    dbSettings.hero_image_4 || "/parts/jack.jpg",
-    dbSettings.hero_image_5 || "/parts/lubricant.jpg",
-  ].filter(Boolean);
-
+/**
+ * Isolated hero slideshow:
+ * - Only downloads slide #1 initially (never all 5 at once).
+ * - Loads subsequent slides on-demand right when transitioning to them.
+ * - Pauses timer when scrolled out of view or when browser tab is hidden.
+ * - Keeps slide ticks isolated so the rest of the homepage doesn't re-render.
+ */
+function HeroSlideshow({
+  images,
+  locationTag,
+  heroTitle,
+  heroSubtitle,
+  whatsappNum,
+}: {
+  images: string[];
+  locationTag: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  whatsappNum: string;
+}) {
+  const sectionRef = useRef<HTMLElement | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [loadedIndices, setLoadedIndices] = useState<number[]>([0]);
+  const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    if (heroImages.length <= 1) return;
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % heroImages.length);
-    }, 4500);
-    return () => clearInterval(timer);
-  }, [heroImages.length]);
+    const el = sectionRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        setIsVisible(Boolean(entries[0]?.isIntersecting));
+      },
+      { threshold: 0.05 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
-  const locationTag = dbSettings.hero_location_tag || dbSettings.store_address || SHOP.city;
-  const heroTitle = dbSettings.hero_title || "Quality spanners, jacks & hardware tools.";
-  const heroSubtitle =
-    dbSettings.hero_subtitle ||
-    "Your number one tool station for quality spanners, hydraulic jacks, multimeters, socket sets and workshop equipment — priced in UGX.";
-  const whatsappNum = dbSettings.store_whatsapp || SHOP.whatsapp;
-  const storeAddress = dbSettings.store_address || SHOP.address;
-  const storeHours = dbSettings.store_hours || SHOP.hoursWeek;
+  useEffect(() => {
+    if (images.length <= 1 || !isVisible) return;
+
+    const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      setCurrentSlide((prev) => {
+        const next = (prev + 1) % images.length;
+        setLoadedIndices((loaded) =>
+          loaded.includes(next) ? loaded : [...loaded, next],
+        );
+        return next;
+      });
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [images.length, isVisible]);
+
+  const goToSlide = (idx: number) => {
+    setLoadedIndices((loaded) =>
+      loaded.includes(idx) ? loaded : [...loaded, idx],
+    );
+    setCurrentSlide(idx);
+  };
 
   return (
-    <div>
-      <section className="relative isolate min-h-[420px] overflow-hidden">
-        {heroImages.map((img, idx) => (
+    <section
+      ref={sectionRef}
+      className="relative isolate min-h-[420px] overflow-hidden bg-elevated"
+    >
+      {images.map((img, idx) => {
+        if (!loadedIndices.includes(idx)) return null;
+        return (
           <img
             key={idx}
             src={img}
             alt={`Tool Hub background slide ${idx + 1}`}
+            loading={idx === 0 ? "eager" : "lazy"}
+            decoding="async"
+            fetchPriority={idx === 0 ? "high" : "low"}
             onError={(e) => {
               e.currentTarget.onerror = null;
               e.currentTarget.src = "/parts/workshop.jpg";
             }}
             className={`absolute inset-0 size-full object-cover transition-all duration-1000 ease-in-out ${
-              idx === currentSlide ? "opacity-100 scale-100" : "opacity-0 scale-105 pointer-events-none"
+              idx === currentSlide
+                ? "opacity-100 scale-100"
+                : "opacity-0 scale-105 pointer-events-none"
             }`}
           />
-        ))}
+        );
+      })}
 
-        {/* Lightened gradient overlay to show vibrant clear background photos */}
-        <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/60 to-background/30" />
+      {/* Lightened gradient overlay to show vibrant clear background photos */}
+      <div className="absolute inset-0 bg-gradient-to-r from-background/90 via-background/60 to-background/30" />
 
-        <div className="relative mx-auto flex max-w-6xl flex-col gap-6 px-4 py-20 sm:py-28">
-          <p className="text-xs font-semibold tracking-[0.2em] text-amber-500 uppercase">
-            {locationTag}
-          </p>
-          <h1 className="font-display max-w-3xl text-5xl leading-[0.95] font-semibold tracking-tight text-foreground sm:text-7xl">
-            {heroTitle}
-          </h1>
-          <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            {heroSubtitle}
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button asChild size="lg">
-              <Link to="/shop" search={{}}>
-                Browse tools
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <a
-                href={whatsappUrl(
-                  "Hello TOOL HUB, I need a tool. I will send the specifications.",
-                  whatsappNum
-                )}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <WhatsAppIcon className="size-4" />
-                Order on WhatsApp
-              </a>
-            </Button>
-          </div>
-
-          {/* Slide Indicator Dots */}
-          {heroImages.length > 1 && (
-            <div className="mt-4 flex items-center gap-2">
-              {heroImages.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentSlide(idx)}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    idx === currentSlide ? "w-8 bg-amber-500" : "w-2 bg-muted-foreground/40 hover:bg-muted-foreground"
-                  }`}
-                  aria-label={`Go to slide ${idx + 1}`}
-                />
-              ))}
-            </div>
-          )}
+      <div className="relative mx-auto flex max-w-6xl flex-col gap-6 px-4 py-20 sm:py-28">
+        <p className="text-xs font-semibold tracking-[0.2em] text-amber-500 uppercase">
+          {locationTag}
+        </p>
+        <h1 className="font-display max-w-3xl text-5xl leading-[0.95] font-semibold tracking-tight text-foreground sm:text-7xl">
+          {heroTitle}
+        </h1>
+        <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+          {heroSubtitle}
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild size="lg">
+            <Link to="/shop" search={{}}>
+              Browse tools
+              <ArrowRight className="size-4" />
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <a
+              href={whatsappUrl(
+                "Hello TOOL HUB, I need a tool. I will send the specifications.",
+                whatsappNum,
+              )}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <WhatsAppIcon className="size-4" />
+              Order on WhatsApp
+            </a>
+          </Button>
         </div>
-      </section>
+
+        {/* Slide Indicator Dots */}
+        {images.length > 1 && (
+          <div className="mt-4 flex items-center gap-2">
+            {images.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => goToSlide(idx)}
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  idx === currentSlide
+                    ? "w-8 bg-amber-500"
+                    : "w-2 bg-muted-foreground/40 hover:bg-muted-foreground"
+                }`}
+                aria-label={`Go to slide ${idx + 1}`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function Home() {
+  const { hot, heroSettings } = Route.useLoaderData();
+  const { categories, settings: siteSettings } = useLoaderData({ from: "__root__" });
+
+  const heroImages = [
+    heroSettings.hero_image_1 || heroSettings.hero_image || "/parts/workshop.jpg",
+    heroSettings.hero_image_2 || "/parts/headlamp.jpg",
+    heroSettings.hero_image_3 || "/parts/grill.jpg",
+    heroSettings.hero_image_4 || "/parts/jack.jpg",
+    heroSettings.hero_image_5 || "/parts/lubricant.jpg",
+  ].filter(Boolean);
+
+  const locationTag =
+    heroSettings.hero_location_tag || siteSettings.store_address || SHOP.city;
+  const heroTitle =
+    heroSettings.hero_title || "Quality spanners, jacks & hardware tools.";
+  const heroSubtitle =
+    heroSettings.hero_subtitle ||
+    "Your number one tool station for quality spanners, hydraulic jacks, multimeters, socket sets and workshop equipment — priced in UGX.";
+  const whatsappNum = siteSettings.store_whatsapp || SHOP.whatsapp;
+  const storeAddress = siteSettings.store_address || SHOP.address;
+  const storeHours = siteSettings.store_hours || SHOP.hoursWeek;
+
+  return (
+    <div>
+      <HeroSlideshow
+        images={heroImages}
+        locationTag={locationTag}
+        heroTitle={heroTitle}
+        heroSubtitle={heroSubtitle}
+        whatsappNum={whatsappNum}
+      />
 
       <section className="mx-auto max-w-6xl px-4 py-14">
         <div className="flex items-end justify-between gap-4">

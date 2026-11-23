@@ -1,31 +1,25 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useLoaderData } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast, Toaster } from "sonner";
 import { Minus, Plus, Phone } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
+import { SmartImage } from "@/components/smart-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
-import {
-  getProductBySlug,
-  listRelatedProducts,
-  getPublicShopSettings,
-} from "@/lib/catalog";
+import { getProductBySlug, listRelatedProducts } from "@/lib/catalog";
 import { useCart } from "@/lib/cart-store";
 import { formatUgx } from "@/lib/format";
 import { SHOP, whatsappUrl } from "@/lib/shop";
 
 export const Route = createFileRoute("/parts/$slug")({
   loader: async ({ params }) => {
-    const [product, dbSettings] = await Promise.all([
-      getProductBySlug({ data: { slug: params.slug } }),
-      getPublicShopSettings(),
-    ]);
+    const product = await getProductBySlug({ data: { slug: params.slug } });
     if (!product) throw notFound();
     const related = await listRelatedProducts({
       data: { slug: product.slug, category: product.category_slug },
     });
-    return { product, related, dbSettings };
+    return { product, related };
   },
   head: ({ loaderData }) => {
     if (!loaderData?.product) return {};
@@ -97,7 +91,8 @@ export const Route = createFileRoute("/parts/$slug")({
 });
 
 function ProductPage() {
-  const { product, related, dbSettings } = Route.useLoaderData();
+  const { product, related } = Route.useLoaderData();
+  const { settings: dbSettings } = useLoaderData({ from: "__root__" });
   const add = useCart((s) => s.add);
   const [qty, setQty] = useState(1);
 
@@ -120,14 +115,14 @@ function ProductPage() {
 
       <div className="mt-6 grid gap-10 lg:grid-cols-2">
         <div className="overflow-hidden rounded-xl bg-card shadow-[var(--shadow-border)]">
-          <img
+          <SmartImage
             src={product.image}
             alt={product.name}
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = "/parts/headlamp.jpg";
-            }}
-            className="aspect-square w-full object-cover"
+            priority
+            width={800}
+            height={800}
+            wrapperClassName="aspect-square w-full"
+            className="size-full object-cover"
           />
         </div>
         <div>

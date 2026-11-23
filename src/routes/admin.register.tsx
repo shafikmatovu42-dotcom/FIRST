@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Lock, User, Mail, UserCheck, ArrowRight, ShieldCheck, Wrench, AlertCircle, ShieldAlert } from "lucide-react";
 import { adminRegister, checkHasAdminUser } from "@/lib/admin-auth";
 
@@ -13,7 +13,6 @@ export const Route = createFileRoute("/admin/register")({
 
 function AdminRegisterPage() {
   const { hasAdmin } = Route.useLoaderData();
-  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");

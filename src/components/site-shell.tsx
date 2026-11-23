@@ -1,41 +1,37 @@
-import { useEffect, useState } from "react";
-import { Outlet, Link } from "@tanstack/react-router";
+import { Outlet, Link, useLocation } from "@tanstack/react-router";
 import { LayoutGrid, Phone, ShoppingCart } from "lucide-react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { PwaInstallBanner } from "@/components/pwa-install-banner";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
 import { SHOP, whatsappUrl } from "@/lib/shop";
-import { getPublicShopSettings } from "@/lib/catalog";
+import type { SiteShellData } from "@/lib/catalog";
 
-export function SiteShell() {
-  const [shopPhone, setShopPhone] = useState<string>(SHOP.phoneTel);
-  const [whatsappNum, setWhatsappNum] = useState<string>(SHOP.whatsapp);
+export function SiteShell({ siteData }: { siteData: SiteShellData }) {
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith("/admin");
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const settings = await getPublicShopSettings();
-        if (settings.store_whatsapp) setWhatsappNum(settings.store_whatsapp);
-        if (settings.store_phone) setShopPhone(settings.store_phone);
-      } catch {
-        // Fallback to default
-      }
-    })();
-  }, []);
+  if (isAdminRoute) {
+    return <Outlet />;
+  }
+
+  const settings = siteData?.settings ?? {};
+  const categories = siteData?.categories ?? [];
+  const shopPhone = settings.store_phone || SHOP.phoneTel;
+  const whatsappNum = settings.store_whatsapp || SHOP.whatsapp;
 
   return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
-      <SiteHeader />
+      <SiteHeader categories={categories} settings={settings} />
       <main className="flex-1 pb-24 md:pb-0">
         <Outlet />
       </main>
       <PwaInstallBanner />
-      <SiteFooter />
+      <SiteFooter settings={settings} />
       <a
         href={whatsappUrl(
           "Hello TOOL HUB, I am looking for a spare part. Can you help?",
-          whatsappNum
+          whatsappNum,
         )}
         target="_blank"
         rel="noreferrer"

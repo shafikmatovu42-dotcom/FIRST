@@ -1,9 +1,16 @@
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
+import { SmartImage } from "@/components/smart-image";
 import { formatUgx } from "@/lib/format";
-import type { Product } from "@/lib/catalog";
+import type { ProductSummary } from "@/lib/catalog";
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({
+  product,
+  priority = false,
+}: {
+  product: ProductSummary;
+  priority?: boolean;
+}) {
   return (
     <Link
       to="/parts/$slug"
@@ -11,13 +18,13 @@ export function ProductCard({ product }: { product: Product }) {
       className="group flex flex-col overflow-hidden rounded-xl bg-card shadow-[var(--shadow-border)] transition-[box-shadow,transform] duration-250 ease-out hover:shadow-[var(--shadow-border-hover)]"
     >
       <div className="relative aspect-square overflow-hidden bg-elevated">
-        <img
+        <SmartImage
           src={product.image}
           alt={product.name}
-          onError={(e) => {
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = "/parts/headlamp.jpg";
-          }}
+          priority={priority}
+          width={400}
+          height={400}
+          wrapperClassName="size-full"
           className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.03]"
         />
         <div className="absolute top-3 left-3 flex gap-1.5">

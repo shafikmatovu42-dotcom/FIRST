@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { ShoppingBag, Phone, MapPin, Calendar, CheckCircle2, Clock, X, MessageSquare, Filter } from "lucide-react";
-import { listOrders, updateOrderStatus, Order, OrderItem } from "@/lib/admin-orders";
+import { Phone, MapPin, X } from "lucide-react";
+import { listOrders, updateOrderStatus, type Order, type OrderItem } from "@/lib/admin-orders";
 import { formatUgx } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/orders")({
@@ -202,7 +202,17 @@ function AdminOrdersPage() {
                     return items.map((item, idx) => (
                       <div key={idx} className="flex items-center justify-between py-2.5 text-xs">
                         <div className="flex items-center gap-3">
-                          <img src={item.image} alt={item.name} className="size-10 rounded-lg object-cover bg-zinc-900 border border-zinc-800" />
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            loading="lazy"
+                            decoding="async"
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = "/parts/headlamp.jpg";
+                            }}
+                            className="size-10 rounded-lg object-cover bg-zinc-900 border border-zinc-800"
+                          />
                           <div>
                             <p className="font-semibold text-white">{item.name}</p>
                             <p className="text-zinc-500">{formatUgx(item.price_ugx)} x {item.quantity}</p>

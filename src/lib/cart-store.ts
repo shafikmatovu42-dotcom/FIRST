@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Product } from "@/lib/catalog";
+import type { ProductSummary } from "@/lib/catalog";
 
 export type CartItem = {
   productId: number;
@@ -14,7 +14,7 @@ export type CartItem = {
 
 type CartState = {
   items: CartItem[];
-  add: (product: Product, qty?: number) => void;
+  add: (product: ProductSummary, qty?: number) => void;
   setQty: (productId: number, qty: number) => void;
   remove: (productId: number) => void;
   clear: () => void;

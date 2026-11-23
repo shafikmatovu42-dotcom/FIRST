@@ -1,20 +1,15 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useLoaderData } from "@tanstack/react-router";
 import { Clock, Mail, MapPin, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
 import { SHOP, whatsappUrl } from "@/lib/shop";
-import { getPublicShopSettings } from "@/lib/catalog";
 
 export const Route = createFileRoute("/contact")({
-  loader: async () => {
-    const dbSettings = await getPublicShopSettings();
-    return { dbSettings };
-  },
   component: ContactPage,
 });
 
 function ContactPage() {
-  const { dbSettings } = Route.useLoaderData();
+  const { settings: dbSettings } = useLoaderData({ from: "__root__" });
 
   const storeName = dbSettings.store_name || SHOP.name;
   const storePhone = dbSettings.store_phone || SHOP.phoneDisplay;
@@ -71,7 +66,7 @@ function ContactPage() {
         <a
           href={whatsappUrl(
             `Hello ${storeName}, I need a tool. I will send the photo or details.`,
-            storeWhatsapp
+            storeWhatsapp,
           )}
           target="_blank"
           rel="noreferrer"

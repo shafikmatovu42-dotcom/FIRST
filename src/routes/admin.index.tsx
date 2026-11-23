@@ -1,33 +1,32 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Package, ShoppingBag, DollarSign, AlertTriangle, ArrowUpRight, Clock, Plus, CheckCircle2 } from "lucide-react";
-import { listProducts, Product } from "@/lib/catalog";
-import { listOrders, Order } from "@/lib/admin-orders";
-import { listActivityLogs, ActivityLog } from "@/lib/admin-activity";
+import {
+  Package,
+  ShoppingBag,
+  DollarSign,
+  AlertTriangle,
+  ArrowUpRight,
+  Clock,
+  CheckCircle2,
+} from "lucide-react";
+import { getAdminDashboardSummary } from "@/lib/admin-catalog";
 import { formatUgx } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/")({
-  loader: async () => {
-    const [products, orders, logs] = await Promise.all([
-      listProducts(),
-      listOrders(),
-      listActivityLogs(),
-    ]);
-    return { products, orders, logs };
-  },
+  loader: async () => getAdminDashboardSummary(),
   component: AdminDashboardIndex,
 });
 
 function AdminDashboardIndex() {
-  const { products, orders, logs } = Route.useLoaderData();
-
-  // Compute metrics
-  const totalProducts = products.length;
-  const lowStockProducts = products.filter((p) => p.stock <= 3);
-  const totalOrders = orders.length;
-  const pendingOrders = orders.filter((o) => o.status === "Pending");
-  const estimatedRevenue = orders
-    .filter((o) => o.status !== "Cancelled")
-    .reduce((sum, o) => sum + o.total_ugx, 0);
+  const {
+    totalProducts,
+    lowStockCount,
+    lowStockProducts,
+    totalOrders,
+    pendingOrdersCount,
+    estimatedRevenue,
+    recentOrders,
+    recentLogs,
+  } = Route.useLoaderData();
 
   return (
     <div className="space-y-8">
@@ -62,11 +61,11 @@ function AdminDashboardIndex() {
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5 backdrop-blur-xl">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Low Stock Alert</span>
-            <div className={`flex size-9 items-center justify-center rounded-xl ${lowStockProducts.length > 0 ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+            <div className={`flex size-9 items-center justify-center rounded-xl ${lowStockCount > 0 ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"}`}>
               <AlertTriangle className="size-5" />
             </div>
           </div>
-          <p className="mt-3 text-3xl font-extrabold text-white">{lowStockProducts.length}</p>
+          <p className="mt-3 text-3xl font-extrabold text-white">{lowStockCount}</p>
           <div className="mt-2 flex items-center justify-between text-xs text-zinc-400">
             <span>Items ≤ 3 units</span>
             <Link to="/admin/products" className="flex items-center gap-1 text-amber-400 hover:underline">
@@ -85,7 +84,7 @@ function AdminDashboardIndex() {
           </div>
           <p className="mt-3 text-3xl font-extrabold text-white">{totalOrders}</p>
           <div className="mt-2 flex items-center justify-between text-xs text-zinc-400">
-            <span className="text-amber-400 font-semibold">{pendingOrders.length} pending</span>
+            <span className="text-amber-400 font-semibold">{pendingOrdersCount} pending</span>
             <Link to="/admin/orders" className="flex items-center gap-1 text-amber-400 hover:underline">
               View orders <ArrowUpRight className="size-3" />
             </Link>
@@ -125,13 +124,13 @@ function AdminDashboardIndex() {
             </Link>
           </div>
 
-          {orders.length === 0 ? (
+          {recentOrders.length === 0 ? (
             <div className="py-8 text-center text-xs text-zinc-500">
               No orders placed yet. Orders will appear here automatically when customers check out.
             </div>
           ) : (
             <div className="divide-y divide-zinc-800/60">
-              {orders.slice(0, 5).map((order) => (
+              {recentOrders.map((order) => (
                 <div key={order.id} className="flex items-center justify-between py-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -203,7 +202,7 @@ function AdminDashboardIndex() {
             </div>
 
             <div className="mt-3 divide-y divide-zinc-800/40 text-xs">
-              {logs.slice(0, 4).map((log) => (
+              {recentLogs.map((log) => (
                 <div key={log.id} className="py-2.5">
                   <p className="font-semibold text-zinc-200">{log.action}</p>
                   <p className="text-[11px] text-zinc-400 line-clamp-1 mt-0.5">{log.details}</p>

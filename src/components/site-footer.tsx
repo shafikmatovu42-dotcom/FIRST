@@ -1,48 +1,17 @@
-import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Clock, Mail, MapPin, Phone } from "lucide-react";
 import { SHOP } from "@/lib/shop";
-import { getPublicShopSettings } from "@/lib/catalog";
 
-type FooterInfo = {
-  name: string;
-  tagline: string;
-  phoneDisplay: string;
-  phoneTel: string;
-  email: string;
-  address: string;
-  hoursWeek: string;
-};
-
-export function SiteFooter() {
-  const [info, setInfo] = useState<FooterInfo>({
-    name: SHOP.name,
-    tagline: SHOP.tagline,
-    phoneDisplay: SHOP.phoneDisplay,
-    phoneTel: SHOP.phoneTel,
-    email: SHOP.email,
-    address: SHOP.address,
-    hoursWeek: SHOP.hoursWeek,
-  });
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const s = await getPublicShopSettings();
-        setInfo({
-          name: s.store_name || SHOP.name,
-          tagline: s.hero_subtitle || SHOP.tagline,
-          phoneDisplay: s.store_phone || SHOP.phoneDisplay,
-          phoneTel: s.store_phone || SHOP.phoneTel,
-          email: s.store_email || SHOP.email,
-          address: s.store_address || SHOP.address,
-          hoursWeek: s.store_hours || SHOP.hoursWeek,
-        });
-      } catch {
-        // Fallback to defaults
-      }
-    })();
-  }, []);
+export function SiteFooter({ settings }: { settings: Record<string, string> }) {
+  const info = {
+    name: settings.store_name || SHOP.name,
+    tagline: settings.hero_subtitle || SHOP.tagline,
+    phoneDisplay: settings.store_phone || SHOP.phoneDisplay,
+    phoneTel: settings.store_phone || SHOP.phoneTel,
+    email: settings.store_email || SHOP.email,
+    address: settings.store_address || SHOP.address,
+    hoursWeek: settings.store_hours || SHOP.hoursWeek,
+  };
 
   return (
     <footer className="mt-auto border-t border-border bg-card">

@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Minus, Plus, Trash2 } from "lucide-react";
+import { SmartImage } from "@/components/smart-image";
 import { Button } from "@/components/ui/button";
 import { WhatsAppIcon } from "@/components/whatsapp-icon";
 import {
@@ -52,13 +53,12 @@ function CartPage() {
                 params={{ slug: item.slug }}
                 className="size-24 shrink-0 overflow-hidden rounded-md bg-elevated"
               >
-                <img
+                <SmartImage
                   src={item.image}
                   alt={item.name}
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = "/parts/headlamp.jpg";
-                  }}
+                  width={96}
+                  height={96}
+                  wrapperClassName="size-full"
                   className="size-full object-cover"
                 />
               </Link>

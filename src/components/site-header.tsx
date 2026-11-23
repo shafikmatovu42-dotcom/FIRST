@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Menu, Phone, Search, ShoppingCart, Wrench } from "lucide-react";
+import { Menu, Search, ShoppingCart, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,7 +13,7 @@ import {
 import { cartCount, useCart } from "@/lib/cart-store";
 import { shopSearch } from "@/lib/shop-search";
 import { SHOP } from "@/lib/shop";
-import { listCategories, getPublicShopSettings, Category } from "@/lib/catalog";
+import type { Category } from "@/lib/catalog";
 import { NotificationBell } from "@/components/notification-bell";
 
 type NavLink = {
@@ -22,85 +22,82 @@ type NavLink = {
   cat?: string;
 };
 
-export function SiteHeader() {
+export function SiteHeader({
+  categories,
+  settings,
+}: {
+  categories: Category[];
+  settings: Record<string, string>;
+}) {
   const items = useCart((s) => s.items);
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [navLinks, setNavLinks] = useState<NavLink[]>([
-    { to: "/shop", label: "All parts" },
-    { to: "/shop", label: "Headlamps", cat: "headlamps" },
-    { to: "/shop", label: "Taillamps", cat: "taillamps" },
-    { to: "/shop", label: "Body parts", cat: "body-parts" },
-    { to: "/about", label: "About" },
-    { to: "/contact", label: "Contact" },
-    { to: "/admin" as any, label: "Owner Portal" },
-  ]);
-  type HeaderBranding = {
-    name: string;
-    logo: string;
-  };
-  const [branding, setBranding] = useState<HeaderBranding>({
-    name: SHOP.name,
-    logo: "",
-  });
-
   const navigate = useNavigate();
-  const count = ready ? cartCount(items) : 0;
 
   useEffect(() => {
     setReady(true);
-    void (async () => {
-      try {
-        const [cats, settings] = await Promise.all([
-          listCategories(),
-          getPublicShopSettings(),
-        ]);
-
-        if (settings.store_name || settings.store_logo) {
-          setBranding({
-            name: settings.store_name || SHOP.name,
-            logo: settings.store_logo || "",
-          });
-        }
-
-        const headerCatSlugs = settings.header_categories
-          ? settings.header_categories.split(",").map((s) => s.trim()).filter(Boolean)
-          : ["headlamps", "taillamps", "body-parts"];
-
-        const selectedCats: Category[] = [];
-        for (const slug of headerCatSlugs) {
-          const found = cats.find((c) => c.slug === slug);
-          if (found) selectedCats.push(found);
-        }
-
-        if (selectedCats.length < 3) {
-          for (const c of cats) {
-            if (!selectedCats.some((sc) => sc.slug === c.slug)) {
-              selectedCats.push(c);
-              if (selectedCats.length >= 3) break;
-            }
-          }
-        }
-
-        const dynamicLinks: NavLink[] = [
-          { to: "/shop", label: "All parts" },
-          ...selectedCats.slice(0, 3).map((c) => ({
-            to: "/shop" as const,
-            label: c.name,
-            cat: c.slug,
-          })),
-          { to: "/about", label: "About" },
-          { to: "/contact", label: "Contact" },
-          { to: "/admin" as any, label: "Owner Portal" },
-        ];
-
-        setNavLinks(dynamicLinks);
-      } catch {
-        // Fallback to defaults
-      }
-    })();
   }, []);
+
+  const branding = useMemo(
+    () => ({
+      name: settings.store_name || SHOP.name,
+      logo: settings.store_logo || "",
+    }),
+    [settings.store_name, settings.store_logo],
+  );
+
+  const navLinks = useMemo<NavLink[]>(() => {
+    if (categories.length === 0) {
+      return [
+        { to: "/shop", label: "All parts" },
+        { to: "/shop", label: "Headlamps", cat: "headlamps" },
+        { to: "/shop", label: "Taillamps", cat: "taillamps" },
+        { to: "/shop", label: "Body parts", cat: "body-parts" },
+        { to: "/about", label: "About" },
+        { to: "/contact", label: "Contact" },
+        { to: "/admin", label: "Owner Portal" },
+      ];
+    }
+
+    const headerCatSlugs = settings.header_categories
+      ? settings.header_categories
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : ["headlamps", "taillamps", "body-parts"];
+
+    const selectedCats: Category[] = [];
+    for (const slug of headerCatSlugs) {
+      const found = categories.find((c) => c.slug === slug);
+      if (found) selectedCats.push(found);
+    }
+
+    if (selectedCats.length < 3) {
+      for (const c of categories) {
+        if (!selectedCats.some((sc) => sc.slug === c.slug)) {
+          selectedCats.push(c);
+          if (selectedCats.length >= 3) break;
+        }
+      }
+    }
+
+    return [
+      { to: "/shop", label: "All parts" },
+      ...selectedCats.slice(0, 3).map((c) => ({
+        to: "/shop" as const,
+        label: c.name,
+        cat: c.slug,
+      })),
+      { to: "/about", label: "About" },
+      { to: "/contact", label: "Contact" },
+      { to: "/admin", label: "Owner Portal" },
+    ];
+  }, [categories, settings.header_categories]);
+
+  const phoneDisplay = settings.store_phone || SHOP.phoneDisplay;
+  const phoneTel = settings.store_phone || SHOP.phoneTel;
+  const count = ready ? cartCount(items) : 0;
 
   function onSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -129,7 +126,14 @@ export function SiteHeader() {
         <Link to="/" className="flex shrink-0 items-center gap-2.5">
           <span className="flex size-9 items-center justify-center overflow-hidden rounded-md bg-primary text-primary-foreground">
             {branding.logo ? (
-              <img src={branding.logo} alt={branding.name} className="size-full object-cover" />
+              <img
+                src={branding.logo}
+                alt={branding.name}
+                width={36}
+                height={36}
+                decoding="async"
+                className="size-full object-cover"
+              />
             ) : (
               <Wrench className="size-4" />
             )}
@@ -234,10 +238,10 @@ export function SiteHeader() {
                   ),
                 )}
                 <a
-                  href={`tel:${SHOP.phoneTel}`}
+                  href={`tel:${phoneTel}`}
                   className="rounded-md px-2 py-3 text-base text-foreground hover:bg-elevated"
                 >
-                  Call {SHOP.phoneDisplay}
+                  Call {phoneDisplay}
                 </a>
               </nav>
             </SheetContent>
@@ -247,4 +251,3 @@ export function SiteHeader() {
     </header>
   );
 }
-
